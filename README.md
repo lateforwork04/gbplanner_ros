@@ -17,126 +17,49 @@
 For an extensive documentation, installation instructions, and demos please visit the documentation page of the repository here: [**Documetation**](https://github.com/ntnu-arl/gbplanner3_wiki/wiki).
 
 
-## Setup
+## ROS 2 Jazzy port (`ros2-jazzy-migration` branch)
 
+This branch runs on **ROS 2 Jazzy / Ubuntu 24.04 / Gazebo Harmonic**. The ROS 1 (Noetic)
+instructions are on the upstream [`gbplanner3`](https://github.com/ntnu-arl/gbplanner_ros/tree/gbplanner3)
+branch. Migration notes, dependency status and what changed: [ROS2_MIGRATION.md](ROS2_MIGRATION.md).
 
-### Create workspace for OmniPlanner
+### Dependencies
 ```bash
-mkdir ~/omniplanner_dev_env
+sudo apt install ros-jazzy-pcl-ros ros-jazzy-grid-map ros-jazzy-behaviortree-cpp \
+  ros-jazzy-backward-ros ros-jazzy-mavros ros-jazzy-ros-gz libgoogle-glog-dev \
+  libgflags-dev libprotobuf-dev protobuf-compiler python3-vcstool
 ```
 
-### GazeboSim: Garden
-If you intend to use the [Gazebo](https://gazebosim.org/home) simulator, you will need to install the Gazebo Garden from source on Ubuntu 20.04 using the following instructions. The instructions have been taken from the original documentation [here](https://gazebosim.org/docs/garden/install_ubuntu_src).
-
-#### Install tools:
+### Workspace
 ```bash
-sudo apt install python3-pip lsb-release gnupg curl git
-pip3 install vcstool
-pip3 install -U colcon-common-extensions
+mkdir -p ~/gbplanner_ws/src && cd ~/gbplanner_ws
+vcs import < <(curl -sL https://raw.githubusercontent.com/lateforwork04/gbplanner_ros/ros2-jazzy-migration/vcstool/ros2_jazzy.repos)
+touch src/mapping/voxblox/voxblox_skeleton/COLCON_IGNORE src/mapping/voxblox/voxblox_rviz_plugin/COLCON_IGNORE
+source /opt/ros/jazzy/setup.bash
+colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+source install/setup.bash
 ```
 
-#### Create a workspace for gazebo:
-```bash
-cd ~/omniplanner_dev_env
-mkdir -p gazebo_garden_ws/src
-cd gazebo_garden_ws/src
-```
+| Package | Contents |
+|---|---|
+| `planner_msgs`, `planner_semantic_msgs` | interfaces (PascalCase names, UPPER_CASE constants) |
+| `kdtree`, `planner_common` | graph, params, `ros2_compat.h` (logging / params / clock / service helpers) |
+| `map_manager` | voxblox TSDF map running inside the planner node |
+| `gbplanner` | planner node, behavior trees, configs, launch files |
+| `planner_control_interface` | PCI library (planner loop, services, interactive markers) |
+| `pci_mavros` | PCI for ArduCopter (GUIDED) through mavros |
+| `gbplanner_ui` | RViz2 control panel |
 
-#### Get source files:
+### Simulation: SpaceUav Gazebo Harmonic stack (ArduCopter + mavros)
 ```bash
-curl -O https://raw.githubusercontent.com/ntnu-arl/gz-sim/refs/heads/fix/position_control/collection-garden.yaml
-vcs import < collection-garden.yaml
+# 1. simulator, with the 3D lidar on the ArduPilot drones and without the TUIs
+#    (they also publish <drone>/map -> <drone>/base_link)
+~/AFlightForward/spaceuav-main-flight-stack/scripts/run_gazebo_mixed_sitl.sh --lidar3d --no-tui
+# 2. planner + control interface + RViz2 for one drone
+ros2 launch gbplanner spaceuav_gz_exploration.launch.py drone:=SpaceUavDrone1
 ```
-
-#### Install dependancies:
-```bash
-sudo curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
-sudo apt-get update
-
-cd ~/omniplanner_dev_env/gazebo_garden_ws/src
-sudo apt -y install \
-  $(sort -u $(find . -iname 'packages-'`lsb_release -cs`'.apt' -o -iname 'packages.apt' | grep -v '/\.git/') | sed '/gz\|sdf/d' | tr '\n' ' ')
-```
-> **_NOTE:_** Replace the files of the `gz-sim` folder with the files from [this](https://github.com/ntnu-arl/gz-sim/tree/dev/multicopter_control) and switch `gz-common` to 82a649e1 commit.
-
-#### Build:
-
-```bash
-cd ~/omniplanner_dev_env/gazebo_garden_ws
-colcon graph
-colcon build --cmake-args -DBUILD_TESTING=OFF --merge-install
-```
-
-#### Source the workspace:
-```bash
-source ~/omniplanner_dev_env/gazebo_garden_ws/install/setup.bash
-```
-
-### ROS-GZ Bridge
-#### Create a workspace for gazebo:
-```bash
-cd ~/omniplanner_dev_env
-mkdir -p ros_gz_bridge_ws/src
-cd ros_gz_bridge_ws/src
-```
-#### Clone the bridge:
-```bash
-git clone git@github.com:ntnu-arl/ros_gz.git -b garden_noetic
-cd ~/ros_gz_bridge_ws
-catkin config --install
-catkin build
-```
-> **_NOTE:_** Make sure `ros_gz_bridge_ws` extends `~/omniplanner_dev_env/gazebo_garden_ws/install` and `/opt/ros/noetic`.
-
-#### Source the workspace:
-```bash
-source ~/omniplanner_dev_env/ros_gz_bridge_ws/install/setup.bash
-```
-
-## OmniPlanner Installation
-
-#### Install dependancies:
-```bash
-sudo apt install python3-catkin-tools \
-libgoogle-glog-dev \
-ros-noetic-joy \
-ros-noetic-twist-mux \
-ros-noetic-interactive-marker-twist-server \
-ros-noetic-octomap-msgs \
-ros-noetic-octomap-ros \
-git-lfs
-```
-
-#### Create the workspace:
-```bash
-mkdir -p ~/omniplanner_dev_env/omniplanner_ws/src/exploration
-cd ~/omniplanner_dev_env/omniplanner_ws/src/exploration
-```
-#### Clone the planner
-```bash
-git clone git@github.com:ntnu-arl/gbplanner_ros.git
-```
-
-#### Clone and update the required packages
-```bash
-cd ~/omniplanner_dev_env/omniplanner_ws/
-vcs import < ./src/exploration/gbplanner_ros/vcstool/packages.repos
-cd src/sim/subt_cave_sim
-git lfs pull
-```
-
-#### Build
-```bash
-catkin config -DCMAKE_BUILD_TYPE=Release
-catkin build
-```
-> **_NOTE:_** Make sure `omniplanner_ws` extends `~/omniplanner_dev_env/gazebo_garden_ws/install`, `~/omniplanner_dev_env/ros_gz_bridge_ws/install` and `/opt/ros/noetic`.
-
-#### Source
-```bash
-source ~/omniplanner_dev_env/omniplanner_ws/devel/setup.sh
-```
+In the **GbPlanner Control** panel: *Initialization* (GUIDED, arm, take off, turn in place),
+then *Start Planner*. *2D Goal Pose* + *Plan to Waypoint* sends the drone to a goal.
 
 ## Citation
 

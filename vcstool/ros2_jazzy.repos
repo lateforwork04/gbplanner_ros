@@ -1,0 +1,14 @@
+# ROS 2 Jazzy workspace for gbplanner_ros (ros2-jazzy-migration branch). See README.md.
+repositories:
+  src/exploration/gbplanner_ros:
+    type: git
+    url: https://github.com/lateforwork04/gbplanner_ros.git
+    version: ros2-jazzy-migration
+  src/exploration/adaptive_obb_ros:
+    type: git
+    url: https://github.com/lateforwork04/adaptive_obb_ros.git
+    version: ros2-jazzy
+  src/mapping/voxblox:
+    type: git
+    url: https://github.com/GabrieleSantangelo/voxblox-ros2.git
+    version: 243dc3e8927b2d696010e52e9126bf832261d213
