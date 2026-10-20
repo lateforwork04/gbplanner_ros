@@ -2,14 +2,15 @@
 #define GBPLANNER_RVIZ_H_
 
 #include <eigen3/Eigen/Dense>
-#include <geometry_msgs/PolygonStamped.h>
-#include <geometry_msgs/PoseArray.h>
+#include <geometry_msgs/msg/polygon_stamped.hpp>
+#include <geometry_msgs/msg/pose_array.hpp>
 #include <pcl/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <ros/ros.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <visualization_msgs/Marker.h>
-#include <visualization_msgs/MarkerArray.h>
+#include <rclcpp/rclcpp.hpp>
+#include "planner_common/ros2_compat.h"
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <visualization_msgs/msg/marker.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 
 #include "planner_common/geofence_manager.h"
 #include "planner_common/graph.h"
@@ -22,7 +23,7 @@
 
 class Visualization {
  public:
-  Visualization(const ros::NodeHandle& nh, const ros::NodeHandle& nh_private);
+  Visualization(const rclcpp::Node::SharedPtr& node);
   // Visualize planning workspace including global and local bounds.
   void visualizeWorkspace(StateVec& state, BoundedSpaceParams& global_ws,
                           BoundedSpaceParams& local_ws);
@@ -59,9 +60,9 @@ class Visualization {
                           const ShortestPathsReport& graph_rep, int n,
                           int best_vertex_id);
   // Visualize executing path.
-  void visualizeRefPath(const std::vector<geometry_msgs::Pose>& path);
+  void visualizeRefPath(const std::vector<geometry_msgs::msg::Pose>& path);
   // Visualize executing path. Option to change color (0=red, 1=green, 2=blue)
-  void visualizeRefPath(const std::vector<geometry_msgs::Pose>& path,
+  void visualizeRefPath(const std::vector<geometry_msgs::msg::Pose>& path,
                         int color);
   // Visualize volumetric gain.
   void visualizeVolumetricGain(
@@ -107,10 +108,10 @@ class Visualization {
   void visualizeHyperplanes(Eigen::Vector3d& center,
                             std::vector<Eigen::Vector3d>& hyperplane_list,
                             std::vector<Eigen::Vector3d>& tangent_point_list);
-  void visualizeModPath(const std::vector<geometry_msgs::Pose>& path);
-  void visualizeBlindModPath(const std::vector<geometry_msgs::Pose>& path);
+  void visualizeModPath(const std::vector<geometry_msgs::msg::Pose>& path);
+  void visualizeBlindModPath(const std::vector<geometry_msgs::msg::Pose>& path);
 
-  void visualizeOpeningTraversalPath(const std::vector<geometry_msgs::Pose>& path);
+  void visualizeOpeningTraversalPath(const std::vector<geometry_msgs::msg::Pose>& path);
 
   // Set the fixed frame of the mission for visualization
   void setGlobalFrame(std::string frame_id) { world_frame_id = frame_id; }
@@ -118,38 +119,37 @@ class Visualization {
   void visualizeViewpoints(std::vector<StateVec>& viewpoints);
 
  private:
-  ros::NodeHandle nh_;
-  ros::NodeHandle nh_private_;
+  rclcpp::Node::SharedPtr node_;
 
-  ros::Publisher planning_workspace_pub_;
-  ros::Publisher no_gain_zone_pub_;
-  ros::Publisher robot_state_pub_;
-  ros::Publisher planning_graph_pub_;
-  ros::Publisher planning_projected_graph_pub_;
-  ros::Publisher planning_failed_pub_;
-  ros::Publisher sampler_pub_;
-  ros::Publisher geofence_pub_;
-  ros::Publisher sensor_fov_pub_;
-  ros::Publisher volumetric_gain_pub_;
-  ros::Publisher rays_pub_;
-  ros::Publisher negative_edges_pub_;
-  ros::Publisher shortest_paths_pub_;
-  ros::Publisher best_planning_path_pub_;
-  ros::Publisher ref_path_pub_;
-  ros::Publisher ref_path_color_pub_;
-  ros::Publisher mod_path_pub_;
-  ros::Publisher blind_mod_path_pub_;
-  ros::Publisher planning_global_graph_pub_;
-  ros::Publisher planning_homing_pub_;
-  ros::Publisher planning_global_pub_;
-  ros::Publisher hyperplanes_pub_;
-  ros::Publisher clustered_paths_pub_;
-  ros::Publisher state_history_pub_;
-  ros::Publisher pcl_pub_;
-  ros::Publisher path_pub_;
-  ros::Publisher opening_traversal_path_pub_;
-  ros::Publisher graph_vertices_pub_;
-  ros::Publisher viewpoints_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr planning_workspace_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr no_gain_zone_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr robot_state_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr planning_graph_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr planning_projected_graph_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr planning_failed_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr sampler_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr geofence_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr sensor_fov_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr volumetric_gain_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr rays_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr negative_edges_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr shortest_paths_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr best_planning_path_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr ref_path_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr ref_path_color_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr mod_path_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr blind_mod_path_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr planning_global_graph_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr planning_homing_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr planning_global_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr hyperplanes_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr clustered_paths_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr state_history_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pcl_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr path_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr opening_traversal_path_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr graph_vertices_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr viewpoints_pub_;
 
   std::string world_frame_id = "world";
   // 0 = infinite

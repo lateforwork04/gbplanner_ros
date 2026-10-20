@@ -1,110 +1,84 @@
 #include "gbplanner/gbplanner.h"
 
-#include <nav_msgs/Path.h>
+#include <nav_msgs/msg/path.hpp>
 
 // namespace explorer {
 
-Gbplanner::Gbplanner(const ros::NodeHandle& nh,
-                     const ros::NodeHandle& nh_private)
-    : nh_(nh), nh_private_(nh_private) {
+Gbplanner::Gbplanner(const rclcpp::Node::SharedPtr& node)
+    : node_(node) {
   planner_status_ = Gbplanner::PlannerStatus::NOT_READY;
 
-  rrg_ = new Rrg(nh, nh_private);
+  rrg_ = new Rrg(node);
   if (!(rrg_->loadParams(false))) {
     ROS_ERROR_COND(global_verbosity >= Verbosity::ERROR, "Could not load all required parameters. Shutdown ROS node.");
-    ros::shutdown();
+    rclcpp::shutdown();
   }
 
   initializeAttributes();
 }
 
-Gbplanner::Gbplanner(const ros::NodeHandle& nh,
-                     const ros::NodeHandle& nh_private,
+Gbplanner::Gbplanner(const rclcpp::Node::SharedPtr& node,
                      MapManager* map_manager)
-    : nh_(nh), nh_private_(nh_private) {
+    : node_(node) {
   
   planner_status_ = Gbplanner::PlannerStatus::NOT_READY;
-  rrg_ = new Rrg(nh, nh_private, map_manager);
+  rrg_ = new Rrg(node, map_manager);
 
   if (!(rrg_->loadParams(true))) {
     ROS_ERROR_COND(global_verbosity >= Verbosity::ERROR, "Could not load all required parameters. Shutdown ROS node.");
-    ros::shutdown();
+    rclcpp::shutdown();
   }
 
   initializeAttributes();
 }
 
 void Gbplanner::initializeAttributes() {
-  planner_service_ = nh_.advertiseService(
-      "gbplanner", &Gbplanner::plannerServiceCallback, this);
-  global_planner_service_ = nh_.advertiseService(
-      "gbplanner/global", &Gbplanner::globalPlannerServiceCallback, this);
-  planner_homing_service_ = nh_.advertiseService(
-      "gbplanner/homing", &Gbplanner::homingServiceCallback, this);
+  planner_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerSrv>(node_, "gbplanner", this, &Gbplanner::plannerServiceCallback);
+  global_planner_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerGlobal>(node_, "gbplanner/global", this, &Gbplanner::globalPlannerServiceCallback);
+  planner_homing_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerHoming>(node_, "gbplanner/homing", this, &Gbplanner::homingServiceCallback);
   planner_set_homing_pos_service_ =
-      nh_.advertiseService("gbplanner/set_homing_pos",
-                           &Gbplanner::setHomingPosServiceCallback, this);
-  planner_search_service_ = nh_.advertiseService(
-      "gbplanner/search", &Gbplanner::plannerSearchServiceCallback, this);
-  planner_passing_gate_service_ = nh_.advertiseService(
-      "gbplanner/passing_gate", &Gbplanner::passingGateCallback, this);
-  planner_set_global_bound_service_ = nh_.advertiseService(
-      "gbplanner/set_global_bound", &Gbplanner::setGlobalBound, this);
+      planner_common::advertiseService<planner_msgs::srv::PlannerSetHomingPos>(node_, "gbplanner/set_homing_pos", this, &Gbplanner::setHomingPosServiceCallback);
+  planner_search_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerSearch>(node_, "gbplanner/search", this, &Gbplanner::plannerSearchServiceCallback);
+  planner_passing_gate_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerRequestPath>(node_, "gbplanner/passing_gate", this, &Gbplanner::passingGateCallback);
+  planner_set_global_bound_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerSetGlobalBound>(node_, "gbplanner/set_global_bound", this, &Gbplanner::setGlobalBound);
   planner_set_dynamic_global_bound_service_ =
-      nh_.advertiseService("gbplanner/set_dynamic_global_bound",
-                           &Gbplanner::setDynamicGlobalBound, this);
+      planner_common::advertiseService<planner_msgs::srv::PlannerDynamicGlobalBound>(node_, "gbplanner/set_dynamic_global_bound", this, &Gbplanner::setDynamicGlobalBound);
   planner_clear_untraversable_zones_service_ =
-      nh_.advertiseService("gbplanner/clear_untraversable_zones",
-                           &Gbplanner::clearUntraversableZones, this);
-  planner_load_graph_service_ = nh_.advertiseService(
-      "gbplanner/load_graph", &Gbplanner::plannerLoadGraphCallback, this);
-  planner_save_graph_service_ = nh_.advertiseService(
-      "gbplanner/save_graph", &Gbplanner::plannerSaveGraphCallback, this);
+      planner_common::advertiseService<std_srvs::srv::Trigger>(node_, "gbplanner/clear_untraversable_zones", this, &Gbplanner::clearUntraversableZones);
+  planner_load_graph_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerStringTrigger>(node_, "gbplanner/load_graph", this, &Gbplanner::plannerLoadGraphCallback);
+  planner_save_graph_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerStringTrigger>(node_, "gbplanner/save_graph", this, &Gbplanner::plannerSaveGraphCallback);
   planner_goto_wp_service_ =
-      nh_.advertiseService("gbplanner/go_to_waypoint",
-                           &Gbplanner::plannerGotoWaypointCallback, this);
+      planner_common::advertiseService<planner_msgs::srv::PlannerGoToWaypoint>(node_, "gbplanner/go_to_waypoint", this, &Gbplanner::plannerGotoWaypointCallback);
   planner_enable_untraversable_polygon_subscriber_service_ =
-      nh_.advertiseService(
-          "gbplanner/enable_untraversable_polygon_subscriber",
-          &Gbplanner::plannerEnableUntraversablePolygonSubscriberCallback,
-          this);
-  planner_set_planning_trigger_mode_service_ = nh_.advertiseService(
-      "gbplanner/set_planning_trigger_mode",
-      &Gbplanner::plannerSetPlanningTriggerModeCallback, this);
+      planner_common::advertiseService<std_srvs::srv::SetBool>(node_, "gbplanner/enable_untraversable_polygon_subscriber", this, &Gbplanner::plannerEnableUntraversablePolygonSubscriberCallback);
+  planner_set_planning_trigger_mode_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerSetPlanningMode>(node_, "gbplanner/set_planning_trigger_mode", this, &Gbplanner::plannerSetPlanningTriggerModeCallback);
       
-  inspection_path_service_ = nh_.advertiseService(
-      "gbplanner/get_inspection_path",
-      &Gbplanner::inspectionServiceCallback, this);
+  inspection_path_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerSrv>(node_, "gbplanner/get_inspection_path", this, &Gbplanner::inspectionServiceCallback);
 
-  force_compartment_transition_service_ = nh_.advertiseService(
-      "gbplanner/force_compartment_transition",
-      &Gbplanner::forceCompartmentChangeServiceCallback, this);
+  force_compartment_transition_service_ = planner_common::advertiseService<std_srvs::srv::Trigger>(node_, "gbplanner/force_compartment_transition", this, &Gbplanner::forceCompartmentChangeServiceCallback);
   
-  switch_operation_mode_service_ = nh_.advertiseService(
-      "gbplanner/switch_operation_mode",
-      &Gbplanner::switchOperationModeServiceCallback, this);
+  switch_operation_mode_service_ = planner_common::advertiseService<std_srvs::srv::SetBool>(node_, "gbplanner/switch_operation_mode", this, &Gbplanner::switchOperationModeServiceCallback);
 
-  pose_subscriber_ = nh_.subscribe("pose", 100, &Gbplanner::poseCallback, this);
+  pose_subscriber_ = planner_common::subscribe(node_, "pose", 100, &Gbplanner::poseCallback, this);
   pose_stamped_subscriber_ =
-      nh_.subscribe("pose_stamped", 100, &Gbplanner::poseStampedCallback, this);
+      planner_common::subscribe(node_, "pose_stamped", 100, &Gbplanner::poseStampedCallback, this);
   odometry_subscriber_ =
-      nh_.subscribe("odometry", 100, &Gbplanner::odometryCallback, this);
+      planner_common::subscribe(node_, "odometry", 100, &Gbplanner::odometryCallback, this);
   robot_status_subcriber_ =
-      nh_.subscribe("/robot_status", 1, &Gbplanner::robotStatusCallback, this);
+      planner_common::subscribe(node_, "/robot_status", 1, &Gbplanner::robotStatusCallback, this);
   untraversable_polygon_subscriber_ =
-      nh_.subscribe("/traversability_estimation/untraversable_polygon", 100,
-                    &Gbplanner::untraversablePolygonCallback, this);
+      planner_common::subscribe(node_, "/traversability_estimation/untraversable_polygon", 100, &Gbplanner::untraversablePolygonCallback, this);
 
   local_nav_goal_subscriber_ = 
-    nh_.subscribe("local_navigation_goal", 100, &Gbplanner::localNavGoalCallback, this);
+    planner_common::subscribe(node_, "local_navigation_goal", 100, &Gbplanner::localNavGoalCallback, this);
 
   stop_srv_subscriber_ =
-      nh_.subscribe("planner_control_interface/stop_request", 5, &Gbplanner::stopMsgCallback, this);
+      planner_common::subscribe(node_, "planner_control_interface/stop_request", 5, &Gbplanner::stopMsgCallback, this);
 
   global_planner_local_goal_pub_ =
-      nh_.advertise<geometry_msgs::PoseStamped>("gbplanner/homing_local_goal", 10);
+      node_->create_publisher<geometry_msgs::msg::PoseStamped>("gbplanner/homing_local_goal", 10);
 
-  std::string ns = ros::this_node::getName();
+  std::string ns = planner_common::nodeName();
   planning_params_.loadParams(ns + "/PlanningParams");
 
   ROS_WARN_COND(global_verbosity >= Verbosity::DEBUG, "Compartment Centers:");
@@ -123,8 +97,8 @@ void Gbplanner::initializeAttributes() {
 }
 
 bool Gbplanner::inspectionServiceCallback(
-    planner_msgs::planner_srv::Request& req,
-    planner_msgs::planner_srv::Response& res) {
+    planner_msgs::srv::PlannerSrv::Request& req,
+    planner_msgs::srv::PlannerSrv::Response& res) {
   //
   // res.path = rrg_->getInspectionPath();
   if(planning_params_.basic_inspection_viewpoints)
@@ -135,54 +109,53 @@ bool Gbplanner::inspectionServiceCallback(
 }
 
 bool Gbplanner::forceCompartmentChangeServiceCallback(
-              std_srvs::Trigger::Request& req,
-              std_srvs::Trigger::Response& res) {
+              std_srvs::srv::Trigger::Request& req,
+              std_srvs::srv::Trigger::Response& res) {
   //
   planner_mode_ = PlannerMode::kCompartmentChange;
   return true;
 }
 
 bool Gbplanner::plannerGotoWaypointCallback(
-    planner_msgs::planner_go_to_waypoint::Request& req,
-    planner_msgs::planner_go_to_waypoint::Response& res) {
+    planner_msgs::srv::PlannerGoToWaypoint::Request& req,
+    planner_msgs::srv::PlannerGoToWaypoint::Response& res) {
   res.path.clear();
   res.path = rrg_->getGlobalPath(req.waypoint);
   return true;
 }
 
 bool Gbplanner::plannerEnableUntraversablePolygonSubscriberCallback(
-    std_srvs::SetBool::Request& request,
-    std_srvs::SetBool::Response& response) {
+    std_srvs::srv::SetBool::Request& request,
+    std_srvs::srv::SetBool::Response& response) {
   if (static_cast<bool>(request.data)) {
     ROS_INFO_COND(global_verbosity >= Verbosity::INFO, "Gbplanner checks traversability");
     untraversable_polygon_subscriber_ =
-        nh_.subscribe("/traversability_estimation/untraversable_polygon", 100,
-                      &Gbplanner::untraversablePolygonCallback, this);
+        planner_common::subscribe(node_, "/traversability_estimation/untraversable_polygon", 100, &Gbplanner::untraversablePolygonCallback, this);
   } else {
     ROS_INFO_COND(global_verbosity >= Verbosity::INFO, "Gbplanner stops checking traversability");
-    untraversable_polygon_subscriber_.shutdown();
+    untraversable_polygon_subscriber_.reset();
   }
   response.success = static_cast<unsigned char>(true);
   return true;
 }
 
 bool Gbplanner::plannerLoadGraphCallback(
-    planner_msgs::planner_string_trigger::Request& req,
-    planner_msgs::planner_string_trigger::Response& res) {
+    planner_msgs::srv::PlannerStringTrigger::Request& req,
+    planner_msgs::srv::PlannerStringTrigger::Response& res) {
   res.success = rrg_->loadGraph(req.message);
   return true;
 }
 
 bool Gbplanner::plannerSaveGraphCallback(
-    planner_msgs::planner_string_trigger::Request& req,
-    planner_msgs::planner_string_trigger::Response& res) {
+    planner_msgs::srv::PlannerStringTrigger::Request& req,
+    planner_msgs::srv::PlannerStringTrigger::Response& res) {
   res.success = rrg_->saveGraph(req.message);
   return true;
 }
 
 bool Gbplanner::setGlobalBound(
-    planner_msgs::planner_set_global_bound::Request& req,
-    planner_msgs::planner_set_global_bound::Response& res) {
+    planner_msgs::srv::PlannerSetGlobalBound::Request& req,
+    planner_msgs::srv::PlannerSetGlobalBound::Response& res) {
   if (!req.get_current_bound)
     res.success = rrg_->setGlobalBound(req.bound, req.reset_to_default);
   else
@@ -193,8 +166,8 @@ bool Gbplanner::setGlobalBound(
 }
 
 bool Gbplanner::setDynamicGlobalBound(
-    planner_msgs::planner_dynamic_global_bound::Request& req,
-    planner_msgs::planner_dynamic_global_bound::Response& res) {
+    planner_msgs::srv::PlannerDynamicGlobalBound::Request& req,
+    planner_msgs::srv::PlannerDynamicGlobalBound::Response& res) {
   ROS_INFO_COND(global_verbosity >= Verbosity::INFO, "Calling RRG set dynamic global bound");
   res.success = rrg_->setGlobalBound(req);
   ROS_INFO_COND(global_verbosity >= Verbosity::INFO, "RRG set dynamic global bound returned");
@@ -219,16 +192,16 @@ void Gbplanner::setSharedParams(const RobotParams& robot_params,
 }
 
 bool Gbplanner::passingGateCallback(
-    planner_msgs::planner_request_path::Request& req,
-    planner_msgs::planner_request_path::Response& res) {
+    planner_msgs::srv::PlannerRequestPath::Request& req,
+    planner_msgs::srv::PlannerRequestPath::Response& res) {
   res.path = rrg_->searchPathToPassGate();
   res.bound.mode = res.bound.kExtendedBound;
   return true;
 }
 
 bool Gbplanner::switchOperationModeServiceCallback(
-    std_srvs::SetBool::Request& req,
-    std_srvs::SetBool::Response& res)
+    std_srvs::srv::SetBool::Request& req,
+    std_srvs::srv::SetBool::Response& res)
 {
   bt_states_.operation_mode = static_cast<int>(req.data);
   ROS_WARN("Switching operation mode to: %d", bt_states_.operation_mode);
@@ -237,8 +210,8 @@ bool Gbplanner::switchOperationModeServiceCallback(
 }
 
 bool Gbplanner::plannerServiceCallback(
-    planner_msgs::planner_srv::Request& req,
-    planner_msgs::planner_srv::Response& res) {
+    planner_msgs::srv::PlannerSrv::Request& req,
+    planner_msgs::srv::PlannerSrv::Response& res) {
 
   rrg_->reset();
   
@@ -259,13 +232,13 @@ bool Gbplanner::plannerServiceCallback(
   ROS_WARN("Current Planner Mode: %d", (int)planner_mode_);
 
   bool success = true;
-  std::vector<geometry_msgs::Pose> empty_path;
+  std::vector<geometry_msgs::msg::Pose> empty_path;
   switch (planner_mode_) {
     case PlannerMode::kExploration:
     {
       if(exploration_counter_ >= planning_params_.max_exploration_iterations) {
         res.path = empty_path;
-        res.status = planner_msgs::planner_srv::Response::kForward;
+        res.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
         planner_mode_ = PlannerMode::kInspection;
         success = true;
         exploration_counter_ = 0;
@@ -278,9 +251,9 @@ bool Gbplanner::plannerServiceCallback(
         ++exploration_counter_;
         ROS_WARN_COND(global_verbosity >= Verbosity::DEBUG, "Exploration Counter: %d", exploration_counter_);
         // If exploration is completed
-        if(res.status != planner_msgs::planner_srv::Response::kForward) {
+        if(res.status != planner_msgs::srv::PlannerSrv::Response::FORWARD) {
           res.path = empty_path;
-          res.status = planner_msgs::planner_srv::Response::kForward;
+          res.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
           planner_mode_ = PlannerMode::kInspection;
           success = true;
           exploration_counter_ = 0;
@@ -298,7 +271,7 @@ bool Gbplanner::plannerServiceCallback(
     case PlannerMode::kExplorationComplete:
     {
       res.path = empty_path;
-      res.status = planner_msgs::planner_srv::Response::kManualCustomPath;
+      res.status = planner_msgs::srv::PlannerSrv::Response::MANUAL_CUSTOM_PATH;
       planner_mode_ = PlannerMode::kInspection;
       ROS_WARN("Switching to: %d", (int)planner_mode_);
       break;
@@ -309,11 +282,11 @@ bool Gbplanner::plannerServiceCallback(
       success = getInspectionPath(req, res);
       if(!success) {
         res.path = empty_path;
-        res.status = planner_msgs::planner_srv::Response::kAutoCustomPath;
+        res.status = planner_msgs::srv::PlannerSrv::Response::AUTO_CUSTOM_PATH;
         ROS_WARN("Inspection Failed");
       }
       else {
-        res.status = planner_msgs::planner_srv::Response::kAutoCustomPath;
+        res.status = planner_msgs::srv::PlannerSrv::Response::AUTO_CUSTOM_PATH;
         planner_mode_ = PlannerMode::kCompartmentChange;
         ROS_WARN("Inspection Successful. Switching to: %d", (int)planner_mode_);
       }
@@ -324,7 +297,7 @@ bool Gbplanner::plannerServiceCallback(
     {
 
       if(compartment_counter_ >= planning_params_.compartment_centers.size()-1) {
-        res.status = planner_msgs::planner_srv::Response::kManualCustomPath;
+        res.status = planner_msgs::srv::PlannerSrv::Response::MANUAL_CUSTOM_PATH;
         // res.path = empty_path;
         success = true;
         compartment_change_tries_ = 0;
@@ -370,7 +343,7 @@ Rrg::GlobalPlannerStatus Gbplanner::getGlobalExplorationPath()
   int status;
   out_srv_res_.path = rrg_->runGlobalPlanner(0, false, false, status);
   out_srv_res_.status = status;
-  if(status == planner_msgs::planner_srv::Response::kHoming)
+  if(status == planner_msgs::srv::PlannerSrv::Response::HOMING)
   {
     bt_states_.global_exp_exhausted = true;
     return Rrg::GlobalPlannerStatus::G_HOMING;
@@ -382,7 +355,7 @@ Rrg::GlobalPlannerStatus Gbplanner::getGlobalExplorationPath()
   }
   else
   {
-    if(status == planner_msgs::planner_srv::Response::kHoming)
+    if(status == planner_msgs::srv::PlannerSrv::Response::HOMING)
     {
       return Rrg::GlobalPlannerStatus::G_HOMING;
     }
@@ -394,7 +367,7 @@ bool Gbplanner::calculateGlobalPath()
 {
   if (getPlannerStatus() == Gbplanner::PlannerStatus::NOT_READY) {
     ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "The planner is not ready.");
-    // out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    // out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     return false;
   }
 
@@ -402,7 +375,7 @@ bool Gbplanner::calculateGlobalPath()
   active_global_path_ = rrg_->calculateGlobalPath();
   if(active_global_path_.empty())
   {
-    // out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    // out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     return false;  
   }
 
@@ -410,7 +383,7 @@ bool Gbplanner::calculateGlobalPath()
                               active_global_path_.back().position.y,
                               active_global_path_.back().position.z));
 
-  // out_srv_res_.status = planner_msgs::planner_srv::Response::kHoming;
+  // out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::HOMING;
   return true;
 }
 
@@ -462,14 +435,14 @@ bool Gbplanner::updateGlobalGoal()
   {
     rrg_->setLocalNavGoal(global_goal);
     // visualize global goal
-    geometry_msgs::PoseStamped global_goal_msg;
+    geometry_msgs::msg::PoseStamped global_goal_msg;
     global_goal_msg.header.frame_id = planning_params_.global_frame_id;
-    global_goal_msg.header.stamp = ros::Time::now();
+    global_goal_msg.header.stamp = planner_common::now();
     global_goal_msg.pose.position.x = global_goal[0];
     global_goal_msg.pose.position.y = global_goal[1];
     global_goal_msg.pose.position.z = global_goal[2];
-    global_goal_msg.pose.orientation = tf::createQuaternionMsgFromYaw(0.0);
-    global_planner_local_goal_pub_.publish(global_goal_msg);
+    global_goal_msg.pose.orientation = planner_common::quaternionMsgFromYaw(0.0);
+    global_planner_local_goal_pub_->publish(global_goal_msg);
     return true;
   }
 }
@@ -477,8 +450,8 @@ bool Gbplanner::updateGlobalGoal()
 bool Gbplanner::checkGlobalExplorationStatus()
 {
   int status;
-  std::vector<geometry_msgs::Pose> path = rrg_->runGlobalPlanner(0, false, false, status);
-  if(status == planner_msgs::planner_srv::Response::kHoming)
+  std::vector<geometry_msgs::msg::Pose> path = rrg_->runGlobalPlanner(0, false, false, status);
+  if(status == planner_msgs::srv::PlannerSrv::Response::HOMING)
   {
     bt_states_.global_exp_exhausted = true;
     return true;
@@ -497,7 +470,7 @@ Rrg::LocalPlannerStatus Gbplanner::getLocalNavigationPath()
   // ROS_INFO_COND(global_verbosity >= Verbosity::INFO, "[GBPlanner]: bound mode set");
   rrg_->setRootStateForPlanning(in_srv_req_.root_pose);
   // ROS_INFO_COND(global_verbosity >= Verbosity::INFO, "[GBPlanner]: root state set");
-  ROS_INFO_COND(global_verbosity >= Verbosity::DEBUG, "Root state: %f %f %f, %f", in_srv_req_.root_pose.position.x, in_srv_req_.root_pose.position.y, in_srv_req_.root_pose.position.z, tf::getYaw(in_srv_req_.root_pose.orientation));
+  ROS_INFO_COND(global_verbosity >= Verbosity::DEBUG, "Root state: %f %f %f, %f", in_srv_req_.root_pose.position.x, in_srv_req_.root_pose.position.y, in_srv_req_.root_pose.position.z, tf2::getYaw(in_srv_req_.root_pose.orientation));
 
   Rrg::GraphStatus status;
   Rrg::LocalPlannerStatus ret_status;
@@ -507,7 +480,7 @@ Rrg::LocalPlannerStatus Gbplanner::getLocalNavigationPath()
   if (getPlannerStatus() == Gbplanner::PlannerStatus::NOT_READY) {
     ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "The planner is not ready.");
     status = Rrg::GraphStatus::NOT_OK;
-    out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     return Rrg::LocalPlannerStatus::L_ERR;
   }
 
@@ -543,7 +516,7 @@ Rrg::LocalPlannerStatus Gbplanner::getLocalNavigationPath()
 
   if(status != Rrg::GraphStatus::OK) 
   {
-    out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     return ret_status;
   }
 
@@ -551,32 +524,32 @@ Rrg::LocalPlannerStatus Gbplanner::getLocalNavigationPath()
   switch (lp_status) {
     case Rrg::LocalPlannerStatus::L_OK:
       ret_status = Rrg::LocalPlannerStatus::L_OK;
-      out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+      out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
       break;
     case Rrg::LocalPlannerStatus::L_EXHAUSTED:
       ROS_WARN_COND(global_verbosity >= Verbosity::PLANNER_STATUS, "[GBPLANNER] Reached local navigation goal");
       ret_status = Rrg::LocalPlannerStatus::L_EXHAUSTED;
-      out_srv_res_.status = planner_msgs::planner_srv::Response::kManualCustomPath;
+      out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::MANUAL_CUSTOM_PATH;
       break;
     case Rrg::LocalPlannerStatus::L_ERR:
       ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "[PLANNER_ERROR] Error occurred in local navigation.");
       ret_status = Rrg::LocalPlannerStatus::L_ERR;
-      out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+      out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
       break;
     case Rrg::LocalPlannerStatus::L_STUCK:
       ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "[PLANNER_ERROR] Local navigation stuck.");
       ret_status = Rrg::LocalPlannerStatus::L_STUCK;
-      out_srv_res_.status = planner_msgs::planner_srv::Response::kManualCustomPath;
+      out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::MANUAL_CUSTOM_PATH;
       break;
     case Rrg::LocalPlannerStatus::L_TIME_LIMIT_REACHED:
       ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "[PLANNER_ERROR] Homing needed.");
       ret_status = Rrg::LocalPlannerStatus::L_TIME_LIMIT_REACHED;
-      out_srv_res_.status = planner_msgs::planner_srv::Response::kHoming;
+      out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::HOMING;
       break;
     default:
       ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "[PLANNER_ERROR] Error occurred in local navigation.");
       ret_status = Rrg::LocalPlannerStatus::L_ERR;
-      out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+      out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
       break;
   }
   if(lp_status != Rrg::GraphStatus::OK) 
@@ -585,7 +558,7 @@ Rrg::LocalPlannerStatus Gbplanner::getLocalNavigationPath()
   }
   else {
     out_srv_res_.path = rrg_->getBestPathSimplified();
-    out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     ROS_WARN_COND(global_verbosity >= Verbosity::DEBUG, "[GBPLANNER] Regular Planning");
     ROS_WARN_COND(global_verbosity >= Verbosity::DEBUG, "[GBPLANNER] Path status: %d", out_srv_res_.status);
   }
@@ -598,7 +571,7 @@ Rrg::LocalPlannerStatus Gbplanner::getExplorationPath()
   rrg_->setGlobalFrame(in_srv_req_.header.frame_id);
   rrg_->setBoundMode(static_cast<BoundModeType>(in_srv_req_.bound_mode));
   rrg_->setRootStateForPlanning(in_srv_req_.root_pose);
-  ROS_INFO_COND(global_verbosity >= Verbosity::DEBUG, "Root state: %f %f %f, %f", in_srv_req_.root_pose.position.x, in_srv_req_.root_pose.position.y, in_srv_req_.root_pose.position.z, tf::getYaw(in_srv_req_.root_pose.orientation));
+  ROS_INFO_COND(global_verbosity >= Verbosity::DEBUG, "Root state: %f %f %f, %f", in_srv_req_.root_pose.position.x, in_srv_req_.root_pose.position.y, in_srv_req_.root_pose.position.z, tf2::getYaw(in_srv_req_.root_pose.orientation));
 
   Rrg::GraphStatus status;
   Rrg::LocalPlannerStatus ret_status;
@@ -608,7 +581,7 @@ Rrg::LocalPlannerStatus Gbplanner::getExplorationPath()
   if (getPlannerStatus() == Gbplanner::PlannerStatus::NOT_READY) {
     ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "The planner is not ready.");
     status = Rrg::GraphStatus::NOT_OK;
-    out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     return Rrg::LocalPlannerStatus::L_ERR;
   }
 
@@ -644,7 +617,7 @@ Rrg::LocalPlannerStatus Gbplanner::getExplorationPath()
 
   if(status != Rrg::GraphStatus::OK) 
   {
-    out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     return ret_status;
   }
   
@@ -673,13 +646,13 @@ Rrg::LocalPlannerStatus Gbplanner::getExplorationPath()
 
   if(status != Rrg::GraphStatus::OK) 
   {
-    out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     return ret_status;
   }
 
   if (status == Rrg::GraphStatus::OK) {
     out_srv_res_.path = rrg_->getBestPathSimplified();
-    out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     ROS_WARN_COND(global_verbosity >= Verbosity::DEBUG, "[GBPLANNER] Regular Planning");
     ROS_WARN_COND(global_verbosity >= Verbosity::DEBUG, "[GBPLANNER] Path status: %d", out_srv_res_.status);
   }
@@ -714,8 +687,8 @@ bool Gbplanner::allCompartmentsInspected()
   }
 }
 
-bool Gbplanner::getExplorationPath(planner_msgs::planner_srv::Request& req,
-      planner_msgs::planner_srv::Response& res) {
+bool Gbplanner::getExplorationPath(planner_msgs::srv::PlannerSrv::Request& req,
+      planner_msgs::srv::PlannerSrv::Response& res) {
   //
   auto t1 = std::chrono::high_resolution_clock::now();
   auto t2 = t1;
@@ -726,7 +699,7 @@ bool Gbplanner::getExplorationPath(planner_msgs::planner_srv::Request& req,
   ROS_WARN("Reset time: %f", reset_time);
   rrg_->setBoundMode(static_cast<BoundModeType>(req.bound_mode));
   rrg_->setRootStateForPlanning(req.root_pose);
-  ROS_INFO_COND(global_verbosity >= Verbosity::DEBUG, "Root state: %f %f %f, %f", req.root_pose.position.x, req.root_pose.position.y, req.root_pose.position.z, tf::getYaw(req.root_pose.orientation));
+  ROS_INFO_COND(global_verbosity >= Verbosity::DEBUG, "Root state: %f %f %f, %f", req.root_pose.position.x, req.root_pose.position.y, req.root_pose.position.z, tf2::getYaw(req.root_pose.orientation));
 
 
   // Start the planner.
@@ -745,10 +718,10 @@ bool Gbplanner::getExplorationPath(planner_msgs::planner_srv::Request& req,
     }
     res.path = rrg_->getOpeningTraversalPath();
     if(rrg_->autoOpeningPathApproval()) {
-      res.status = planner_msgs::planner_srv::Response::kAutoCustomPath;
+      res.status = planner_msgs::srv::PlannerSrv::Response::AUTO_CUSTOM_PATH;
     }
     else {
-      res.status = planner_msgs::planner_srv::Response::kManualCustomPath;
+      res.status = planner_msgs::srv::PlannerSrv::Response::MANUAL_CUSTOM_PATH;
     }
     if(res.path.empty()) {
       if(rrg_->openingTraversalOngoing()) {
@@ -800,10 +773,10 @@ bool Gbplanner::getExplorationPath(planner_msgs::planner_srv::Request& req,
         res.path = rrg_->runGlobalPlanner(0, false, false, status);
         if(status < 0) {
           if(rrg_->autoOpeningPathApproval()) {
-            res.status = planner_msgs::planner_srv::Response::kAutoCustomPath;
+            res.status = planner_msgs::srv::PlannerSrv::Response::AUTO_CUSTOM_PATH;
           }
           else {
-            res.status = planner_msgs::planner_srv::Response::kManualCustomPath;
+            res.status = planner_msgs::srv::PlannerSrv::Response::MANUAL_CUSTOM_PATH;
           }
           opening_traversal_ongoing_ = true;
         }
@@ -842,7 +815,7 @@ bool Gbplanner::getInspectionPath()
     out_srv_res_.path = rrg_->getInspectionPathBasic();
   else
     out_srv_res_.path = rrg_->getInspectionPath();
-  out_srv_res_.status = planner_msgs::planner_srv::Response::kAutoCustomPath;
+  out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::AUTO_CUSTOM_PATH;
 
   if(out_srv_res_.path.size() > 0)
     return true;
@@ -850,8 +823,8 @@ bool Gbplanner::getInspectionPath()
     return false;
 }
 
-bool Gbplanner::getInspectionPath(planner_msgs::planner_srv::Request& req,
-      planner_msgs::planner_srv::Response& res) {
+bool Gbplanner::getInspectionPath(planner_msgs::srv::PlannerSrv::Request& req,
+      planner_msgs::srv::PlannerSrv::Response& res) {
   //
   if(planning_params_.basic_inspection_viewpoints)
     res.path = rrg_->getInspectionPathBasic();
@@ -868,7 +841,7 @@ void Gbplanner::getOpeningTraversalPath(OpeningTraversalMode mode, OpeningTraver
 {
   rrg_->setBoundMode(static_cast<BoundModeType>(in_srv_req_.bound_mode));
   out_srv_res_.path = rrg_->getOpeningTraversalPath(mode, status);
-  out_srv_res_.status = planner_msgs::planner_srv::Response::kAutoCustomPath;
+  out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::AUTO_CUSTOM_PATH;
   if(status != OpeningTraversalStatus::OK)
   {
     out_srv_res_.path.clear();
@@ -879,7 +852,7 @@ bool Gbplanner::getCompartmentTransitionPath() {
   //
   rrg_->setBoundMode(static_cast<BoundModeType>(in_srv_req_.bound_mode));
 
-  std::vector<geometry_msgs::Pose> empty_path;
+  std::vector<geometry_msgs::msg::Pose> empty_path;
 
   // ++compartment_counter_;
   BoundedSpaceParams og_global_bb;
@@ -903,51 +876,51 @@ bool Gbplanner::getCompartmentTransitionPath() {
   rrg_->setExplorationAndInspectionBounds(extended_bound, translated_bound);
   rrg_->reset();
 
-  // ros::Duration(0.5).sleep();
+  // planner_common::sleep(0.5);
 
-  geometry_msgs::Pose current_pose;
-  tf::Quaternion quat;
+  geometry_msgs::msg::Pose current_pose;
+  tf2::Quaternion quat;
   quat.setEuler(0.0, 0.0, current_state_[3]);
-  tf::Vector3 origin(current_state_[0], current_state_[1], current_state_[2]);
-  tf::Pose poseTF(quat, origin);
-  tf::poseTFToMsg(poseTF, current_pose);
+  tf2::Vector3 origin(current_state_[0], current_state_[1], current_state_[2]);
+  tf2::Transform poseTF(quat, origin);
+  tf2::toMsg(poseTF, current_pose);
 
-  geometry_msgs::Pose target_pose;
+  geometry_msgs::msg::Pose target_pose;
   quat.setEuler(0.0, 0.0, 0.0);
-  origin = tf::Vector3(planning_params_.compartment_centers[compartment_counter_][0], planning_params_.compartment_centers[compartment_counter_][1], planning_params_.compartment_centers[compartment_counter_][2]);
-  tf::Pose poseTF_target(quat, origin);
-  tf::poseTFToMsg(poseTF_target, target_pose);
+  origin = tf2::Vector3(planning_params_.compartment_centers[compartment_counter_][0], planning_params_.compartment_centers[compartment_counter_][1], planning_params_.compartment_centers[compartment_counter_][2]);
+  tf2::Transform poseTF_target(quat, origin);
+  tf2::toMsg(poseTF_target, target_pose);
 
-  std::vector<geometry_msgs::Pose> connecting_path;
+  std::vector<geometry_msgs::msg::Pose> connecting_path;
   bool search_success = rrg_->search(current_pose, target_pose, true, connecting_path);
   if(search_success) {
     rrg_->setExplorationAndInspectionBounds(translated_bound, translated_bound);
     out_srv_res_.path = connecting_path;
-    out_srv_res_.status = planner_msgs::planner_srv::Response::kAutoCustomPath;
+    out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::AUTO_CUSTOM_PATH;
     ROS_WARN_COND(global_verbosity >= Verbosity::DEBUG, "Compartment counter: %d", compartment_counter_);
   }
   else {
-    out_srv_res_.status = planner_msgs::planner_srv::Response::kAutoCustomPath;
+    out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::AUTO_CUSTOM_PATH;
     out_srv_res_.path = empty_path;
   }
 
   return search_success;
 }
 
-bool Gbplanner::getCompartmentTransitionPath(planner_msgs::planner_srv::Request& req,
-      planner_msgs::planner_srv::Response& res) {
+bool Gbplanner::getCompartmentTransitionPath(planner_msgs::srv::PlannerSrv::Request& req,
+      planner_msgs::srv::PlannerSrv::Response& res) {
   //
-  std::vector<geometry_msgs::Pose> empty_path;
+  std::vector<geometry_msgs::msg::Pose> empty_path;
 
   if(planning_params_.enable_opening_traversal) {
     rrg_->setNextCompartmentCenter(planning_params_.compartment_centers[compartment_counter_+1]);
     rrg_->setNextCompartmentIndex(compartment_counter_+1);
     res.path = rrg_->getOpeningTraversalPath();
     if(rrg_->autoOpeningPathApproval()) {
-      res.status = planner_msgs::planner_srv::Response::kAutoCustomPath;
+      res.status = planner_msgs::srv::PlannerSrv::Response::AUTO_CUSTOM_PATH;
     }
     else {
-      res.status = planner_msgs::planner_srv::Response::kManualCustomPath;
+      res.status = planner_msgs::srv::PlannerSrv::Response::MANUAL_CUSTOM_PATH;
     }
 
     if(!rrg_->openingTraversalOngoing()) {  // Opening traversal finished
@@ -999,32 +972,32 @@ bool Gbplanner::getCompartmentTransitionPath(planner_msgs::planner_srv::Request&
     rrg_->setExplorationAndInspectionBounds(extended_bound, translated_bound);
     rrg_->reset();
 
-    // ros::Duration(0.5).sleep();
+    // planner_common::sleep(0.5);
 
-    geometry_msgs::Pose current_pose;
-    tf::Quaternion quat;
+    geometry_msgs::msg::Pose current_pose;
+    tf2::Quaternion quat;
     quat.setEuler(0.0, 0.0, current_state_[3]);
-    tf::Vector3 origin(current_state_[0], current_state_[1], current_state_[2]);
-    tf::Pose poseTF(quat, origin);
-    tf::poseTFToMsg(poseTF, current_pose);
+    tf2::Vector3 origin(current_state_[0], current_state_[1], current_state_[2]);
+    tf2::Transform poseTF(quat, origin);
+    tf2::toMsg(poseTF, current_pose);
 
-    geometry_msgs::Pose target_pose;
+    geometry_msgs::msg::Pose target_pose;
     quat.setEuler(0.0, 0.0, 0.0);
-    origin = tf::Vector3(planning_params_.compartment_centers[compartment_counter_][0], planning_params_.compartment_centers[compartment_counter_][1], planning_params_.compartment_centers[compartment_counter_][2]);
-    tf::Pose poseTF_target(quat, origin);
-    tf::poseTFToMsg(poseTF_target, target_pose);
+    origin = tf2::Vector3(planning_params_.compartment_centers[compartment_counter_][0], planning_params_.compartment_centers[compartment_counter_][1], planning_params_.compartment_centers[compartment_counter_][2]);
+    tf2::Transform poseTF_target(quat, origin);
+    tf2::toMsg(poseTF_target, target_pose);
 
-    std::vector<geometry_msgs::Pose> connecting_path;
+    std::vector<geometry_msgs::msg::Pose> connecting_path;
     bool search_success = rrg_->search(current_pose, target_pose, true, connecting_path);
     if(search_success) {
       rrg_->setExplorationAndInspectionBounds(translated_bound, translated_bound);
       res.path = connecting_path;
-      res.status = planner_msgs::planner_srv::Response::kForward;
+      res.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
       planner_mode_ = PlannerMode::kExploration;
       ROS_WARN_COND(global_verbosity >= Verbosity::DEBUG, "Compartment counter: %d", compartment_counter_);
     }
     else {
-      res.status = planner_msgs::planner_srv::Response::kForward;
+      res.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
       res.path = empty_path;
     }
     return search_success;
@@ -1034,7 +1007,7 @@ bool Gbplanner::getCompartmentTransitionPath(planner_msgs::planner_srv::Request&
 bool Gbplanner::homingRequired()
 {
   rrg_->setBoundMode(static_cast<BoundModeType>(in_srv_req_.bound_mode));
-  out_srv_res_.status = planner_msgs::planner_srv::Response::kHoming;
+  out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::HOMING;
   return rrg_->homingRequired(out_srv_res_.path);
 }
 
@@ -1042,7 +1015,7 @@ bool Gbplanner::getHomingPath()
 {
   if (getPlannerStatus() == Gbplanner::PlannerStatus::NOT_READY) {
     ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "The planner is not ready.");
-    out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     return false;
   }
 
@@ -1050,11 +1023,11 @@ bool Gbplanner::getHomingPath()
   out_srv_res_.path = rrg_->getHomingPath(in_srv_req_.header.frame_id);
   if(out_srv_res_.path.empty())
   {
-    out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     return false;  
   }
 
-  out_srv_res_.status = planner_msgs::planner_srv::Response::kHoming;
+  out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::HOMING;
   return true;
 }
 
@@ -1062,7 +1035,7 @@ bool Gbplanner::calculateHomingPath()
 {
   if (getPlannerStatus() == Gbplanner::PlannerStatus::NOT_READY) {
     ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "The planner is not ready.");
-    // out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    // out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     return false;
   }
 
@@ -1070,7 +1043,7 @@ bool Gbplanner::calculateHomingPath()
   active_homing_path_ = rrg_->getHomingPath(in_srv_req_.header.frame_id);
   if(active_homing_path_.empty())
   {
-    // out_srv_res_.status = planner_msgs::planner_srv::Response::kForward;
+    // out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::FORWARD;
     return false;  
   }
 
@@ -1078,7 +1051,7 @@ bool Gbplanner::calculateHomingPath()
                               active_homing_path_.back().position.y,
                               active_homing_path_.back().position.z));
 
-  // out_srv_res_.status = planner_msgs::planner_srv::Response::kHoming;
+  // out_srv_res_.status = planner_msgs::srv::PlannerSrv::Response::HOMING;
   return true;
 }
 
@@ -1130,21 +1103,21 @@ bool Gbplanner::updateHomingGoal()
   {
     rrg_->setLocalNavGoal(homing_goal);
     // visualize homing goal
-    geometry_msgs::PoseStamped homing_goal_msg;
+    geometry_msgs::msg::PoseStamped homing_goal_msg;
     homing_goal_msg.header.frame_id = planning_params_.global_frame_id;
-    homing_goal_msg.header.stamp = ros::Time::now();
+    homing_goal_msg.header.stamp = planner_common::now();
     homing_goal_msg.pose.position.x = homing_goal[0];
     homing_goal_msg.pose.position.y = homing_goal[1];
     homing_goal_msg.pose.position.z = homing_goal[2];
-    homing_goal_msg.pose.orientation = tf::createQuaternionMsgFromYaw(0.0);
-    global_planner_local_goal_pub_.publish(homing_goal_msg);
+    homing_goal_msg.pose.orientation = planner_common::quaternionMsgFromYaw(0.0);
+    global_planner_local_goal_pub_->publish(homing_goal_msg);
     return true;
   }
 }
 
 bool Gbplanner::homingServiceCallback(
-    planner_msgs::planner_homing::Request& req,
-    planner_msgs::planner_homing::Response& res) {
+    planner_msgs::srv::PlannerHoming::Request& req,
+    planner_msgs::srv::PlannerHoming::Response& res) {
   ROS_WARN("Homing through direct service call");
   res.path.clear();
   if (getPlannerStatus() == Gbplanner::PlannerStatus::NOT_READY) {
@@ -1156,8 +1129,8 @@ bool Gbplanner::homingServiceCallback(
 }
 
 bool Gbplanner::globalPlannerServiceCallback(
-    planner_msgs::planner_global::Request& req,
-    planner_msgs::planner_global::Response& res) {
+    planner_msgs::srv::PlannerGlobal::Request& req,
+    planner_msgs::srv::PlannerGlobal::Response& res) {
   res.path.clear();
   if (getPlannerStatus() == Gbplanner::PlannerStatus::NOT_READY) {
     ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "The planner is not ready.");
@@ -1170,8 +1143,8 @@ bool Gbplanner::globalPlannerServiceCallback(
 }
 
 bool Gbplanner::setHomingPosServiceCallback(
-    planner_msgs::planner_set_homing_pos::Request& req,
-    planner_msgs::planner_set_homing_pos::Response& res) {
+    planner_msgs::srv::PlannerSetHomingPos::Request& req,
+    planner_msgs::srv::PlannerSetHomingPos::Response& res) {
   if (getPlannerStatus() == Gbplanner::PlannerStatus::NOT_READY) {
     ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "The planner is not ready.");
     return false;
@@ -1181,8 +1154,8 @@ bool Gbplanner::setHomingPosServiceCallback(
 }
 
 bool Gbplanner::plannerSearchServiceCallback(
-    planner_msgs::planner_search::Request& req,
-    planner_msgs::planner_search::Response& res) {
+    planner_msgs::srv::PlannerSearch::Request& req,
+    planner_msgs::srv::PlannerSearch::Response& res) {
   rrg_->setBoundMode(static_cast<BoundModeType>(req.bound_mode));
   res.success =
       rrg_->search(req.source, req.target, req.use_current_state, res.path);
@@ -1190,20 +1163,20 @@ bool Gbplanner::plannerSearchServiceCallback(
 }
 
 bool Gbplanner::plannerSetPlanningTriggerModeCallback(
-    planner_msgs::planner_set_planning_mode::Request& request,
-    planner_msgs::planner_set_planning_mode::Response& response) {
+    planner_msgs::srv::PlannerSetPlanningMode::Request& request,
+    planner_msgs::srv::PlannerSetPlanningMode::Response& response) {
   PlannerTriggerModeType in_trig_mode;
-  if (request.planning_mode == request.kAuto)
+  if (request.planning_mode == request.AUTO)
     in_trig_mode = PlannerTriggerModeType::kAuto;
-  else if (request.planning_mode == request.kManual)
+  else if (request.planning_mode == request.MANUAL)
     in_trig_mode = PlannerTriggerModeType::kManual;
   rrg_->setPlannerTriggerMode(in_trig_mode);
   response.success = true;
   return true;
 }
 
-bool Gbplanner::clearUntraversableZones(std_srvs::Trigger::Request& req,
-                                        std_srvs::Trigger::Response& res) {
+bool Gbplanner::clearUntraversableZones(std_srvs::srv::Trigger::Request& req,
+                                        std_srvs::srv::Trigger::Response& res) {
   ROS_INFO_COND(global_verbosity >= Verbosity::INFO, "Clearing untraversable zones");
   rrg_->clearUntraversableZones();
   res.success = true;
@@ -1211,7 +1184,7 @@ bool Gbplanner::clearUntraversableZones(std_srvs::Trigger::Request& req,
 }
 
 void Gbplanner::untraversablePolygonCallback(
-    const geometry_msgs::PolygonStamped& polygon_msgs) {
+    const geometry_msgs::msg::PolygonStamped& polygon_msgs) {
   // Add the new polygon into geofence list
   if (!polygon_msgs.polygon.points.empty()) {
     ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "Detected untraversable area");
@@ -1221,7 +1194,7 @@ void Gbplanner::untraversablePolygonCallback(
 }
 
 void Gbplanner::setUntraversablePolygon(
-    const geometry_msgs::PolygonStamped& polygon_msgs) {
+    const geometry_msgs::msg::PolygonStamped& polygon_msgs) {
   std::cout << "Untraversable polygon size: "
             << polygon_msgs.polygon.points.size() << std::endl;
   if (!polygon_msgs.polygon.points.empty()) {
@@ -1232,39 +1205,39 @@ void Gbplanner::setUntraversablePolygon(
 }
 
 void Gbplanner::poseCallback(
-    const geometry_msgs::PoseWithCovarianceStamped& pose) {
+    const geometry_msgs::msg::PoseWithCovarianceStamped& pose) {
   processPose(pose.pose.pose);
 }
 
-void Gbplanner::poseStampedCallback(const geometry_msgs::PoseStamped& pose) {
+void Gbplanner::poseStampedCallback(const geometry_msgs::msg::PoseStamped& pose) {
   processPose(pose.pose);
 }
 
-void Gbplanner::processPose(const geometry_msgs::Pose& pose) {
+void Gbplanner::processPose(const geometry_msgs::msg::Pose& pose) {
   StateVec state;
   state[0] = pose.position.x;
   state[1] = pose.position.y;
   state[2] = pose.position.z;
-  state[3] = tf::getYaw(pose.orientation);
+  state[3] = tf2::getYaw(pose.orientation);
   rrg_->setState(state);
   current_state_ = state;
 }
 
-void Gbplanner::odometryCallback(const nav_msgs::Odometry& odo) {
+void Gbplanner::odometryCallback(const nav_msgs::msg::Odometry& odo) {
   StateVec state;
   state[0] = odo.pose.pose.position.x;
   state[1] = odo.pose.pose.position.y;
   state[2] = odo.pose.pose.position.z;
-  state[3] = tf::getYaw(odo.pose.pose.orientation);
+  state[3] = tf2::getYaw(odo.pose.pose.orientation);
   rrg_->setState(state);
   current_state_ = state;
 }
 
-void Gbplanner::robotStatusCallback(const planner_msgs::RobotStatus& status) {
+void Gbplanner::robotStatusCallback(const planner_msgs::msg::RobotStatus& status) {
   rrg_->setTimeRemaining(status.time_remaining);
 }
 
-void Gbplanner::localNavGoalCallback(const geometry_msgs::PoseStamped& goal)
+void Gbplanner::localNavGoalCallback(const geometry_msgs::msg::PoseStamped& goal)
 {
   Eigen::Vector3d local_nav_goal;
   local_nav_goal[0] = goal.pose.position.x;
@@ -1274,7 +1247,7 @@ void Gbplanner::localNavGoalCallback(const geometry_msgs::PoseStamped& goal)
   ROS_WARN("Received local navigation goal: %f, %f, %f", local_nav_goal[0], local_nav_goal[1], local_nav_goal[2]);
 }
 
-void Gbplanner::stopMsgCallback(const std_msgs::Bool& msg)
+void Gbplanner::stopMsgCallback(const std_msgs::msg::Bool& msg)
 {
   bt_states_.homing_required = false;
 }

@@ -1,21 +1,21 @@
+#include <ament_index_cpp/get_package_share_directory.hpp>
+
 #include "gbplanner/gbplanner_ros.h"
 
-GbplannerRos::GbplannerRos(const ros::NodeHandle& nh, const ros::NodeHandle& nh_private)
-  :nh_(nh), nh_private_(nh_private)
+GbplannerRos::GbplannerRos(const rclcpp::Node::SharedPtr& node)
+  : node_(node)
 {
-  planner_service_ = nh_.advertiseService(
-      "gbplanner_ros", &GbplannerRos::plannerServiceCallback, this);
+  planner_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerSrv>(node_, "gbplanner_ros", this, &GbplannerRos::plannerServiceCallback);
   
-  planner_homing_service_ = nh_.advertiseService(
-      "gbplanner_ros_homing", &GbplannerRos::plannerHomingServiceCallback, this);
+  planner_homing_service_ = planner_common::advertiseService<planner_msgs::srv::PlannerHoming>(node_, "gbplanner_ros_homing", this, &GbplannerRos::plannerHomingServiceCallback);
   
-  gbplanner_.reset(new Gbplanner(nh_, nh_private_));
+  gbplanner_.reset(new Gbplanner(node_));
 
   registerTree();
 }
 
-bool GbplannerRos::plannerServiceCallback(planner_msgs::planner_srv::Request& req,
-                              planner_msgs::planner_srv::Response& res)
+bool GbplannerRos::plannerServiceCallback(planner_msgs::srv::PlannerSrv::Request& req,
+                              planner_msgs::srv::PlannerSrv::Response& res)
 {
   gbplanner_->setPlannerSrvReq(req);
   
@@ -27,16 +27,16 @@ bool GbplannerRos::plannerServiceCallback(planner_msgs::planner_srv::Request& re
   return true;
 }
 
-bool GbplannerRos::plannerHomingServiceCallback(planner_msgs::planner_homing::Request& req,
-                              planner_msgs::planner_homing::Response& res)
+bool GbplannerRos::plannerHomingServiceCallback(planner_msgs::srv::PlannerHoming::Request& req,
+                              planner_msgs::srv::PlannerHoming::Response& res)
 {
   ROS_WARN("Homing through BT");
   gbplanner_->bt_states_.homing_required = true;
 
-  // planner_msgs::planner_srv::Request req_planner;
-  // planner_msgs::planner_srv::Response res_planner;
+  // planner_msgs::srv::PlannerSrv::Request req_planner;
+  // planner_msgs::srv::PlannerSrv::Response res_planner;
   // req_planner.header = req.header;
-  // req_planner.bound_mode = planner_msgs::BoundMode::kExtendedBound;
+  // req_planner.bound_mode = planner_msgs::msg::BoundMode::EXTENDED_BOUND;
 
   // gbplanner_->setPlannerSrvReq(req_planner);
   // tree_.tickOnce();
@@ -74,15 +74,14 @@ void GbplannerRos::registerTree()
   factory_.registerNodeType<CalculateGlobalPath>("CalculateGlobalPath", gbplanner_);
   factory_.registerNodeType<UpdateGlobalGoal>("UpdateGlobalGoal", gbplanner_);
 
-  std::string tree_path = ros::package::getPath("gbplanner") + "/config/bt_xml/main_tree.xml";
-  if(!ros::param::get(ros::this_node::getName() + "/behavior_tree_path", tree_path))
+  std::string tree_path;
+  if(!planner_common::param::get(planner_common::nodeName() + "/behavior_tree_path", tree_path))
   {
-    tree_path = ros::package::getPath("gbplanner") + "/config/bt_xml/main_tree.xml";
+    tree_path = ament_index_cpp::get_package_share_directory("gbplanner") +
+                "/config/bt_xml/main_tree.xml";
   }
-  std::string trial_tree_path;
-  ros::param::get("~tree_path", trial_tree_path);
 
-  ROS_WARN_STREAM("Tree path: " << tree_path << " Trial Tree Path: " << trial_tree_path);
+  ROS_WARN_STREAM("Tree path: " << tree_path);
   
   factory_.registerBehaviorTreeFromFile(tree_path);
   tree_ = factory_.createTree("MainTree");

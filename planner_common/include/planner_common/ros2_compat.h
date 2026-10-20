@@ -12,6 +12,7 @@
 // are visible without declaring each one.
 
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <future>
 #include <memory>
@@ -19,6 +20,7 @@
 #include <type_traits>
 #include <vector>
 
+#include <geometry_msgs/msg/quaternion.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 namespace planner_common {
@@ -55,6 +57,14 @@ inline void sleep(double seconds) {
     node()->get_clock()->sleep_for(rclcpp::Duration::from_seconds(seconds));
   else
     rclcpp::sleep_for(std::chrono::nanoseconds(static_cast<int64_t>(seconds * 1e9)));
+}
+
+// tf::createQuaternionMsgFromYaw()
+inline geometry_msgs::msg::Quaternion quaternionMsgFromYaw(double yaw) {
+  geometry_msgs::msg::Quaternion q;
+  q.z = std::sin(yaw / 2);
+  q.w = std::cos(yaw / 2);
+  return q;
 }
 
 // Equivalent of ros::this_node::getName(): "/<namespace>/<node>".
@@ -146,6 +156,21 @@ struct ServiceCall {
   typename SrvT::Response response;
 };
 
+// Callback group for service clients that are called (blocking) from inside
+// other callbacks; requires a MultiThreadedExecutor.
+inline rclcpp::CallbackGroup::SharedPtr clientCallbackGroup() {
+  static rclcpp::CallbackGroup::SharedPtr group;
+  if (!group && node())
+    group = node()->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  return group;
+}
+
+template <typename SrvT>
+typename rclcpp::Client<SrvT>::SharedPtr createClient(const rclcpp::Node::SharedPtr& n,
+                                                      const std::string& name) {
+  return n->create_client<SrvT>(name, rclcpp::ServicesQoS(), clientCallbackGroup());
+}
+
 // Blocking service call, like ros::ServiceClient::call(). The client must
 // belong to a callback group that another executor thread can serve (see
 // clientCallbackGroup()), otherwise the response is never processed.
@@ -179,6 +204,30 @@ typename rclcpp::Service<SrvT>::SharedPtr advertiseService(
       [obj, cb](const std::shared_ptr<typename SrvT::Request> req,
                 std::shared_ptr<typename SrvT::Response> res) { (obj->*cb)(*req, *res); },
       rclcpp::ServicesQoS(), group);
+}
+
+// Subscribe with a ROS 1 style member callback taking the message by const
+// reference or by ConstSharedPtr; the message type comes from the callback.
+template <typename M, typename C>
+typename rclcpp::Subscription<M>::SharedPtr subscribe(
+    const rclcpp::Node::SharedPtr& n, const std::string& topic, size_t depth, void (C::*cb)(const M&),
+    C* obj, rclcpp::CallbackGroup::SharedPtr group = nullptr) {
+  rclcpp::SubscriptionOptions options;
+  options.callback_group = group;
+  return n->create_subscription<M>(
+      topic, rclcpp::QoS(depth), [obj, cb](const M& msg) { (obj->*cb)(msg); }, options);
+}
+
+template <typename M, typename C>
+typename rclcpp::Subscription<M>::SharedPtr subscribe(
+    const rclcpp::Node::SharedPtr& n, const std::string& topic, size_t depth,
+    void (C::*cb)(const std::shared_ptr<const M>&), C* obj,
+    rclcpp::CallbackGroup::SharedPtr group = nullptr) {
+  rclcpp::SubscriptionOptions options;
+  options.callback_group = group;
+  return n->create_subscription<M>(
+      topic, rclcpp::QoS(depth),
+      [obj, cb](const std::shared_ptr<const M> msg) { (obj->*cb)(msg); }, options);
 }
 
 }  // namespace planner_common

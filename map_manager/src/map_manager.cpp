@@ -1,9 +1,9 @@
 #include "map_manager/map_manager.h"
 
-MapManager::MapManager(ros::NodeHandle& nh, ros::NodeHandle& nh_private)
-  : nh_(nh), nh_private_(nh_private) 
+MapManager::MapManager(const rclcpp::Node::SharedPtr& node)
+  : node_(node)
 {
-  map_manager_impl_ = std::make_shared<MapManagerVoxblox<MapManagerVoxbloxServer, MapManagerVoxbloxVoxel>>(nh, nh_private);
+  map_manager_impl_ = std::make_shared<MapManagerVoxblox<MapManagerVoxbloxServer, MapManagerVoxbloxVoxel>>(node);
 }
 
 double MapManager::getResolution()

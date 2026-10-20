@@ -11,7 +11,9 @@ class MapManager {
  public:
   
 
-  MapManager(ros::NodeHandle& nh, ros::NodeHandle& nh_private);
+  // The voxblox server lives on this node: it subscribes to "pointcloud" and
+  // reads the voxblox parameters from it.
+  explicit MapManager(const rclcpp::Node::SharedPtr& node);
 
   double getResolution();
   bool getStatus();
@@ -85,8 +87,7 @@ class MapManager {
   void setLineCheckMethod(int m);
 
  private:
-  ros::NodeHandle nh_;
-  ros::NodeHandle nh_private_;
+  rclcpp::Node::SharedPtr node_;
 
   std::shared_ptr<MapManagerVoxblox<MapManagerVoxbloxServer, MapManagerVoxbloxVoxel>> map_manager_impl_;
 };

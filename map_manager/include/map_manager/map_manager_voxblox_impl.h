@@ -9,7 +9,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
+#include "planner_common/ros2_compat.h"
 #include <voxblox/interpolator/interpolator.h>
 #include <voxblox/utils/layer_utils.h>
 #include <voxblox/utils/planning_utils.h>
@@ -124,8 +125,7 @@ struct hash<Eigen::Matrix<Scalar, Rows, Cols>> {
 template <typename SDFServerType, typename SDFVoxelType>
 class MapManagerVoxblox {
  public:
-  MapManagerVoxblox(ros::NodeHandle& nh,
-                    ros::NodeHandle& nh_private);
+  explicit MapManagerVoxblox(const rclcpp::Node::SharedPtr& node);
 
   double getResolution();
   bool getStatus();
