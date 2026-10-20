@@ -195,7 +195,7 @@ bool Gbplanner::passingGateCallback(
     planner_msgs::srv::PlannerRequestPath::Request& req,
     planner_msgs::srv::PlannerRequestPath::Response& res) {
   res.path = rrg_->searchPathToPassGate();
-  res.bound.mode = res.bound.kExtendedBound;
+  res.bound.mode = res.bound.EXTENDED_BOUND;
   return true;
 }
 

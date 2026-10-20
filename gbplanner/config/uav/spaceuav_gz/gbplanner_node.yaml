@@ -1,5 +1,5 @@
-# gbplanner + voxblox parameters for an ArduCopter (Iris) with a 16-beam 360 deg
-# lidar in the SpaceUav Gazebo Harmonic stack (run_gazebo_mixed_sitl.sh --lidar3d).
+# gbplanner + voxblox parameters for an ArduCopter (Iris) with a 32-beam 360 deg
+# (+/-45 deg) lidar in the SpaceUav Gazebo Harmonic stack (run_gazebo_mixed_sitl.sh --lidar3d).
 # Frame ids (PlanningParams.global_frame_id, world_frame) are overridden per
 # drone by launch/spaceuav_gz_exploration.launch.py. Bounds are in the drone's
 # local frame (origin at its spawn point).
@@ -21,8 +21,8 @@
         max_range: 20.0
         center_offset: [0.0, 0.0, 0.2]
         rotations: [0.0, 0.0, 0.0]
-        fov: [6.283185, 0.523599]
-        resolution: [0.087266, 0.034907]
+        fov: [6.283185, 1.570796]
+        resolution: [0.087266, 0.052360]
         frontier_percentage_threshold: 0.01
     BoundedSpaceParams:
       Global:

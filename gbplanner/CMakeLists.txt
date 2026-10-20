@@ -7,9 +7,10 @@ add_compile_options(-Wall -Wno-sign-compare -Wno-catch-value -Wno-switch -Wno-ma
 find_package(ament_cmake REQUIRED)
 find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(PCL REQUIRED COMPONENTS common filters surface)
+find_package(PCL REQUIRED)
 find_package(gflags REQUIRED)
 find_package(glog REQUIRED)
+find_package(Protobuf REQUIRED)
 set(dependencies
   rclcpp
   ament_index_cpp
@@ -53,6 +54,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${PCL_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES} glog::glog gflags)
 ament_target_dependencies(${PROJECT_NAME} ${dependencies})
+# After the dependencies: voxblox's static libraries need protobuf after them.
+target_link_libraries(${PROJECT_NAME} protobuf::libprotobuf)
 
 add_executable(gbplanner_node src/gbplanner_ros_node.cpp)
 target_link_libraries(gbplanner_node ${PROJECT_NAME})

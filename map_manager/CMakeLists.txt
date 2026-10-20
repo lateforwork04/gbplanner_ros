@@ -8,7 +8,9 @@ add_definitions(-DRAY_CAST_METHOD=0)
 find_package(ament_cmake REQUIRED)
 find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(PCL REQUIRED COMPONENTS common)
+find_package(PCL REQUIRED)
+# voxblox is built as static libraries that do not export their protobuf dependency.
+find_package(Protobuf REQUIRED)
 set(dependencies
   rclcpp
   std_msgs
@@ -38,7 +40,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   $<INSTALL_INTERFACE:include>
   ${EIGEN3_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES} protobuf::libprotobuf)
 ament_target_dependencies(${PROJECT_NAME} ${dependencies})
 
 install(DIRECTORY include/ DESTINATION include)
@@ -46,5 +48,5 @@ install(TARGETS ${PROJECT_NAME} EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib LIBRARY DESTINATION lib RUNTIME DESTINATION bin)
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
-ament_export_dependencies(${dependencies} Eigen3 PCL)
+ament_export_dependencies(${dependencies} Eigen3 PCL Protobuf)
 ament_package()

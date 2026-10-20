@@ -71,7 +71,7 @@ Visualization::Visualization(const rclcpp::Node::SharedPtr& node) {
 void Visualization::visualizeWorkspace(StateVec& state,
                                        BoundedSpaceParams& global_ws,
                                        BoundedSpaceParams& local_ws) {
-  if (planning_workspace_pub_.getNumSubscribers() < 1) return;
+  if (planning_workspace_pub_->get_subscription_count() < 1) return;
   visualization_msgs::msg::MarkerArray marker_array;
 
   // Global ws
@@ -180,7 +180,7 @@ void Visualization::visualizeWorkspace(StateVec& state,
 
 void Visualization::visualizeNoGainZones(
     std::vector<BoundedSpaceParams>& no_gain_zones) {
-  if (no_gain_zone_pub_.getNumSubscribers() < 1) return;
+  if (no_gain_zone_pub_->get_subscription_count() < 1) return;
   visualization_msgs::msg::MarkerArray marker_array;
 
   for (int i = 0; i < no_gain_zones.size(); ++i) {
@@ -285,7 +285,7 @@ void Visualization::visualizeGraph(
   std::unordered_map<int, Vertex*>& v_map = graph_manager->vertices_map_;
 
   if (graph_manager->getNumVertices() == 0) return;
-  if (planning_graph_pub_.getNumSubscribers() < 1) return;
+  if (planning_graph_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
 
@@ -436,7 +436,7 @@ void Visualization::visualizeProjectedGraph(
   std::unordered_map<int, Vertex*>& v_map = graph_manager->vertices_map_;
 
   if (graph_manager->getNumVertices() == 0) return;
-  if (planning_projected_graph_pub_.getNumSubscribers() < 1) return;
+  if (planning_projected_graph_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
 
@@ -517,7 +517,7 @@ void Visualization::visualizeGlobalGraph(
   std::unordered_map<int, Vertex*>& v_map = graph_manager->vertices_map_;
 
   if (graph_manager->getNumVertices() == 0) return;
-  if (planning_global_graph_pub_.getNumSubscribers() < 1) return;
+  if (planning_global_graph_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
 
@@ -706,7 +706,7 @@ void Visualization::visualizeGlobalGraph(
 }
 
 void Visualization::visualizeFailedEdges(std::shared_ptr<SampleStatistic> ss) {
-  if (planning_failed_pub_.getNumSubscribers() < 1) return;
+  if (planning_failed_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
 
@@ -748,7 +748,7 @@ void Visualization::visualizeFailedEdges(std::shared_ptr<SampleStatistic> ss) {
 void Visualization::visualizeRobotState(StateVec& state,
                                         RobotParams& robot_params) {
   // @TODO: not complete yet, have to incoporate offset
-  if (robot_state_pub_.getNumSubscribers() < 1) return;
+  if (robot_state_pub_->get_subscription_count() < 1) return;
   visualization_msgs::msg::MarkerArray marker_array;
 
   // True size
@@ -868,7 +868,7 @@ void Visualization::visualizeRobotState(StateVec& state,
 
 void Visualization::visualizeSensorFOV(StateVec& state,
                                        SensorParams& sensor_params) {
-  if (sensor_fov_pub_.getNumSubscribers() < 1) return;
+  if (sensor_fov_pub_->get_subscription_count() < 1) return;
   if (sensor_params.sensor_list.size() == 0) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
@@ -1074,7 +1074,7 @@ void Visualization::visualizeShortestPaths(
   std::unordered_map<int, Vertex*>& v_map = graph_manager->vertices_map_;
 
   if (graph_manager->getNumVertices() == 0) return;
-  if (shortest_paths_pub_.getNumSubscribers() < 1) return;
+  if (shortest_paths_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
   int num_vertices = graph_manager->getNumVertices();
@@ -1304,7 +1304,7 @@ void Visualization::visualizeClusteredPaths(
   std::unordered_map<int, Vertex*>& v_map = graph_manager->vertices_map_;
 
   if (graph_manager->getNumVertices() == 0) return;
-  if (clustered_paths_pub_.getNumSubscribers() < 1) return;
+  if (clustered_paths_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
   for (int cind = 0; cind < cluster_ids.size(); ++cind) {
@@ -1391,7 +1391,7 @@ bool Visualization::getHeatMapColor(float value, float& red, float& green,
 void Visualization::visualizeHomingPath(
     const std::shared_ptr<GraphManager> graph_manager,
     const ShortestPathsReport& graph_rep, int current_id) {
-  if (planning_homing_pub_.getNumSubscribers() < 1) return;
+  if (planning_homing_pub_->get_subscription_count() < 1) return;
 
   std::unordered_map<int, Vertex*>& v_map = graph_manager->vertices_map_;
 
@@ -1436,7 +1436,7 @@ void Visualization::visualizeHomingPath(
 void Visualization::visualizeGlobalPaths(
     const std::shared_ptr<GraphManager> graph_manager,
     std::vector<int>& to_frontier_ids, std::vector<int>& to_home_ids) {
-  if (planning_global_pub_.getNumSubscribers() < 1) return;
+  if (planning_global_pub_->get_subscription_count() < 1) return;
 
   std::unordered_map<int, Vertex*>& v_map = graph_manager->vertices_map_;
 
@@ -1509,7 +1509,7 @@ void Visualization::visualizeGlobalPaths(
 }
 
 void Visualization::visualizeOpeningTraversalPath(const std::vector<geometry_msgs::msg::Pose>& path) {
-  if(path.size() <= 0 || opening_traversal_path_pub_.getNumSubscribers() <= 0) {
+  if(path.size() <= 0 || opening_traversal_path_pub_->get_subscription_count() <= 0) {
     return;
   }
 
@@ -1579,7 +1579,7 @@ void Visualization::visualizeOpeningTraversalPath(const std::vector<geometry_msg
 void Visualization::visualizePath(
     const std::shared_ptr<GraphManager> graph_manager,
     const ShortestPathsReport& graph_rep, int vertex_id) {
-  if (path_pub_.getNumSubscribers() < 1) return;
+  if (path_pub_->get_subscription_count() < 1) return;
 
   std::unordered_map<int, Vertex*>& v_map = graph_manager->vertices_map_;
 
@@ -1651,7 +1651,7 @@ void Visualization::visualizePath(
 void Visualization::visualizeBestPaths(
     const std::shared_ptr<GraphManager> graph_manager,
     const ShortestPathsReport& graph_rep, int n, int best_vertex_id) {
-  if (best_planning_path_pub_.getNumSubscribers() < 1) return;
+  if (best_planning_path_pub_->get_subscription_count() < 1) return;
 
   std::unordered_map<int, Vertex*>& v_map = graph_manager->vertices_map_;
 
@@ -1724,7 +1724,7 @@ void Visualization::visualizeBestPaths(
 
 void Visualization::visualizeRefPath(
     const std::vector<geometry_msgs::msg::Pose>& path) {
-  if (ref_path_pub_.getNumSubscribers() < 1) return;
+  if (ref_path_pub_->get_subscription_count() < 1) return;
 
   if (path.empty()) return;
 
@@ -1791,7 +1791,7 @@ void Visualization::visualizeRefPath(
 
 void Visualization::visualizeRefPath(
     const std::vector<geometry_msgs::msg::Pose>& path, int color) {
-  if (ref_path_color_pub_.getNumSubscribers() < 1) return;
+  if (ref_path_color_pub_->get_subscription_count() < 1) return;
 
   if (path.empty()) return;
 
@@ -1860,7 +1860,7 @@ void Visualization::visualizeVolumetricGain(
     Eigen::Vector3d& bound_min, Eigen::Vector3d& bound_max,
     std::vector<std::pair<Eigen::Vector3d, VoxelStatus>>& voxels,
     double voxel_size) {
-  if (volumetric_gain_pub_.getNumSubscribers() < 1) return;
+  if (volumetric_gain_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
 
@@ -1967,7 +1967,7 @@ void Visualization::visualizeVolumetricGain(
 }
 
 void Visualization::visualizeSampler(RandomSampler& random_sampler) {
-  if (sampler_pub_.getNumSubscribers() < 1) return;
+  if (sampler_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
 
@@ -2029,7 +2029,7 @@ void Visualization::visualizeSampler(RandomSampler& random_sampler) {
 
 void Visualization::visualizeRays(
     const StateVec state, const std::vector<Eigen::Vector3d> ray_endpoints) {
-  if (rays_pub_.getNumSubscribers() < 1) return;
+  if (rays_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
 
@@ -2068,7 +2068,7 @@ void Visualization::visualizeRays(
 
 void Visualization::visualizeRobotStateHistory(
     const std::vector<StateVec*> state_hist) {
-  if (state_history_pub_.getNumSubscribers() < 1) return;
+  if (state_history_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
 
@@ -2131,7 +2131,7 @@ void Visualization::visualizeRobotStateHistory(
 
 void Visualization::visualizeGeofence(
     const std::shared_ptr<GeofenceManager> geofence_manager) {
-  if (geofence_pub_.getNumSubscribers() < 1) return;
+  if (geofence_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
   std::vector<GeofenceArea> geofence_list;
@@ -2203,7 +2203,7 @@ void Visualization::visualizeGeofence(
 }
 
 void Visualization::visualizePCL(const pcl::PointCloud<pcl::PointXYZ>* pcl) {
-  if (pcl_pub_.getNumSubscribers() < 1) return;
+  if (pcl_pub_->get_subscription_count() < 1) return;
 
   ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "[GBP VIS]: pcl size: %d", (int)(pcl->points.size()));
   if (pcl->points.size() <= 0) {
@@ -2225,7 +2225,7 @@ void Visualization::visualizeHyperplanes(
 
   ++markers_id;
 
-  if (hyperplanes_pub_.getNumSubscribers() < 1) return;
+  if (hyperplanes_pub_->get_subscription_count() < 1) return;
 
   visualization_msgs::msg::MarkerArray marker_array;
 
@@ -2347,7 +2347,7 @@ void Visualization::visualizeHyperplanes(
 
 void Visualization::visualizeModPath(
     const std::vector<geometry_msgs::msg::Pose>& path) {
-  if (mod_path_pub_.getNumSubscribers() < 1) return;
+  if (mod_path_pub_->get_subscription_count() < 1) return;
 
   if (path.empty()) return;
 
@@ -2386,7 +2386,7 @@ void Visualization::visualizeModPath(
 
 void Visualization::visualizeBlindModPath(
     const std::vector<geometry_msgs::msg::Pose>& path) {
-  if (blind_mod_path_pub_.getNumSubscribers() < 1) return;
+  if (blind_mod_path_pub_->get_subscription_count() < 1) return;
 
   if (path.empty()) return;
   visualization_msgs::msg::MarkerArray marker_array;
@@ -2451,7 +2451,7 @@ void Visualization::visualizeBlindModPath(
 void Visualization::visualizeViewpoints(std::vector<StateVec>& viewpoints)
 {
   // Visualize as geometry_msgs::msg::PoseArray
-  if (viewpoints_pub_.getNumSubscribers() < 1) return;
+  if (viewpoints_pub_->get_subscription_count() < 1) return;
 
   geometry_msgs::msg::PoseArray pose_array;
   pose_array.header.frame_id = world_frame_id;

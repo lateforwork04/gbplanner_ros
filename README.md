@@ -36,7 +36,8 @@ mkdir -p ~/gbplanner_ws/src && cd ~/gbplanner_ws
 vcs import < <(curl -sL https://raw.githubusercontent.com/lateforwork04/gbplanner_ros/ros2-jazzy-migration/vcstool/ros2_jazzy.repos)
 touch src/mapping/voxblox/voxblox_skeleton/COLCON_IGNORE src/mapping/voxblox/voxblox_rviz_plugin/COLCON_IGNORE
 source /opt/ros/jazzy/setup.bash
-colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+# voxblox builds static libraries that are linked into shared ones: needs -fPIC
+colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 source install/setup.bash
 ```
 

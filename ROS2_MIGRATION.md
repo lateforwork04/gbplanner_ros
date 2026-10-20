@@ -1,74 +1,74 @@
-# ROS 2 (Jazzy) Migration Plan
+# ROS 2 (Jazzy) Migration
 
-Target: ROS 2 Jazzy on Ubuntu 24.04, Gazebo Harmonic, `ament_cmake` + `colcon`.
+Target: ROS 2 Jazzy, Ubuntu 24.04, Gazebo Harmonic, `ament_cmake` + `colcon`.
 Reference: https://docs.ros.org/en/jazzy/How-To-Guides/Migrating-from-ROS1.html
 
-## Package migration order (bottom-up)
+## Status
 
-| # | Package | Main work |
-|---|---------|-----------|
-| 1 | `kdtree` | Pure C; swap `catkin_simple` -> plain `ament_cmake` |
-| 2 | `planner_msgs`, `planner_semantic_msgs` | `rosidl_generate_interfaces`; **rename all interfaces to PascalCase** (see below); actionlib_msgs -> `action_msgs` |
-| 3 | `planner_common` | `tf` -> `tf2_ros`; `ros::serialization` -> `rclcpp::Serialization` (graph_manager.cpp save/load) |
-| 4 | `map_manager` | Blocked on voxblox (see dependency risks) |
-| 5 | `gbplanner` | rclcpp node, params via `declare_parameter`, `roslib` -> `ament_index_cpp`, timers/services/pubs |
-| 6 | `planner_control_interface` | actionlib client -> `rclcpp_action`; interactive_markers ROS 2 API |
-| 7 | `gbplanner_ui` | rviz Panel -> `rviz_common::Panel`, package.xml format 1 -> 3 |
-| 8 | `planner_gazebo_sim`, `ugv_simulator/ugv_gazebo` | Gazebo Harmonic + `ros_gz`; drop `dynamic_reconfigure` |
-| 9 | launch / config | 12 `.launch` files -> ROS 2 launch; YAML params need `node_name: ros__parameters:` nesting |
-
-## Mechanical changes that apply everywhere
-
-- `catkin` / `catkin_simple` -> `ament_cmake` (`ament_cmake_auto` is the closest `catkin_simple` analogue)
-- `package.xml` -> format 3, `message_generation`/`message_runtime` -> `rosidl_default_generators`/`rosidl_default_runtime` + `<member_of_group>rosidl_interface_packages</member_of_group>`
-- `#include <foo/Bar.h>` -> `#include <foo/msg/bar.hpp>`, `foo::Bar` -> `foo::msg::Bar`, `ConstPtr` -> `SharedPtr`
-- `ros::NodeHandle` -> `rclcpp::Node`; `ros::Time`/`ros::Duration` -> `rclcpp::Time`/`rclcpp::Duration`; `ROS_INFO` -> `RCLCPP_INFO(get_logger(), ...)`
-- `tf` (tf1) -> `tf2_ros` + `tf2_eigen` / `tf2_geometry_msgs`
-- `std_srvs`, `geometry_msgs`, `nav_msgs`, `visualization_msgs`, `sensor_msgs`, `cv_bridge`, `pcl_ros`, `pcl_conversions`, `interactive_markers` all exist in Jazzy
-
-### Breaking: interface names
-
-ROS 2 `rosidl` requires interface names to match `^[A-Z][A-Za-z0-9]*$`. These 26 files will fail to generate and must be renamed (e.g. `planner_srv.srv` -> `PlannerSrv.srv`, `pathFollowerAction.action` -> `PathFollower.action`). Every consumer, including external repos (`pci_general`, `adaptive_obb_ros`, ...), must be updated in step:
-
-`pathFollowerAction.action`, `planner_string_trigger`, `planner_geofence`, `planner_go_to_waypoint`, `planner_search`, `planner_set_global_bound`, `planner_opening_approval`, `planner_set_search_mode`, `planner_srv`, `planner_request_path`, `planner_global`, `planner_homing`, `pci_initialization`, `pci_set_homing_pos`, `planner_dynamic_global_bound`, `planner_set_exp_mode`, `pci_to_waypoint`, `pci_geofence`, `pci_global`, `planner_set_planning_mode`, `pci_trigger`, `planner_set_homing_pos`, `pci_stop`, `pci_search`, `pci_homing_trigger`, `planner_set_vel`
-
-## Dependency risk assessment
-
-### High risk: no ROS 2 version, must port or replace
-
-| Dependency | Used by | Issue | Suggested path |
-|---|---|---|---|
-| `voxblox` / `voxblox_ros` (ntnu-arl fork, `feature/esdf_colorization`) | `map_manager` | ROS 1 only, upstream unmaintained, no official ROS 2 port | Port voxblox core + write a thin rclcpp wrapper (community ports exist as a starting point), or switch mapping backend (nvblox, wavemap, OctoMap) |
-| `protobuf_catkin`, `glog_catkin`, `gflags_catkin`, `eigen_catkin`, `eigen_checks`, `minkindr`, `minkindr_ros`, `numpy_eigen`, `catkin_boost_python_buildtool` | voxblox | catkin-wrapper packages, no ROS 2 builds | Drop; use system `libprotobuf-dev`, `libgoogle-glog-dev`, `libgflags-dev`, `libeigen3-dev`. minkindr core is header-only |
-| `catkin_simple` | kdtree, gbplanner, planner_control_interface, planner_gazebo_sim | catkin-only | `ament_cmake_auto` |
-| `adaptive_obb_ros` | gbplanner | ntnu-arl ROS 1 repo | Port (or move to a pure-C++ core lib) |
-| `pci_general`, `manhole_detector_ros`, `gbplanner3` | runtime stack | ntnu-arl ROS 1 repos; also consume the renamed interfaces | Port alongside this repo |
-| `rotors_simulator` (`dev/rmf_obelix`) | sim | ROS 1 + Gazebo Classic (EOL Jan 2025) | Replace with Gazebo Harmonic models + `ros_gz` |
-| `ros_gz` fork (`garden_noetic`) + patched `gz-sim` (`fix/position_control`, `dev/multicopter_control`) | sim | Garden is EOL; Jazzy pairs with Harmonic. Custom patches must be rebased | Rebase patches onto gz-sim 8 (Harmonic), use upstream `ros_gz` jazzy |
-| `smb_simulator` (`dev/noetic`), `subt_cave_sim`, `arl_gazebo_sim_ros`, `lidar_simulator` | sim | ROS 1 | Port, or keep only world/model assets |
-| `multi_dof_joint_trajectory_rviz_plugins` | rviz | rviz1 plugin | Port to rviz2 |
-
-### Medium risk: available, but API changes
-
-| Dependency | Issue |
+| Package | State |
 |---|---|
-| `BehaviorTree.CPP` (pinned `catkin_support` branch) | XML is already `BTCPP_format="4"`, so use Jazzy's `ros-jazzy-behaviortree-cpp` (v4). Verify API compatibility of the pinned commit vs released v4 |
-| `mav_comm` / `mav_msgs` | No official Jazzy release; community ROS 2 ports exist or vendor the needed messages |
-| `grid_map_*` | Released for ROS 2 but check Jazzy binary availability (`ros-jazzy-grid-map`); may need source build |
-| `actionlib` / `actionlib_msgs` | -> `rclcpp_action`; different client/server API |
-| `roscpp_serialization` | -> `rclcpp::Serialization<T>`; changes on-disk format of saved graphs (old files unreadable) |
-| `roslib` | -> `ament_index_cpp::get_package_share_directory` |
-| `dynamic_reconfigure` (ugv_gazebo) | -> parameter callbacks |
-| `gbplanner_ui` rviz panel | -> `rviz_common`, pluginlib export changes |
+| `planner_msgs`, `planner_semantic_msgs` | ported, builds |
+| `kdtree`, `planner_common` | ported, builds |
+| `map_manager` | ported, builds (voxblox TSDF server embedded in the planner node) |
+| `gbplanner` | ported, builds, runs: plans and returns paths (see Verification) |
+| `planner_control_interface` | ported, builds, runs |
+| `pci_mavros` | **new**, replaces `pci_general` for ArduCopter + mavros |
+| `gbplanner_ui` | ported to RViz2 (`rviz_common::Panel`), builds |
+| `adaptive_obb` | ported on `lateforwork04/adaptive_obb_ros@ros2-jazzy` |
+| `ugv_simulator`, `planner_gazebo_sim`, ROS 1 launch files | removed |
+| `pci_general`, `manhole_detector_ros`, RotorS / SMB / subt simulators | not ported (replaced by the SpaceUav Gazebo Harmonic stack) |
 
-### Low risk: drop-in Jazzy packages
+### Verification so far
+- Whole workspace builds with `colcon` on Jazzy.
+- Launch smoke test with a fake mavros odometry + synthetic 32x360 lidar cloud
+  (no simulator): voxblox integrates the cloud, gbplanner builds a graph
+  (128 vertices / 366 edges), returns a path, `pci_mavros` streams setpoints on
+  `mavros/setpoint_raw/local` and reports ready for the next iteration.
+- **Not yet run** against the real Gazebo + ArduCopter SITL stack (arming,
+  takeoff, setpoint tracking in GUIDED are untested).
 
-`std_msgs`, `geometry_msgs`, `sensor_msgs`, `nav_msgs`, `visualization_msgs`, `std_srvs`, `cv_bridge`, `pcl_ros`, `pcl_conversions`, `tf2_ros`, `interactive_markers`, `joy`, `twist_mux`, `interactive_marker_twist_server`, `octomap_msgs`, `octomap_ros`, Qt5, PCL, OpenCV, Eigen.
+## What changed (and why)
 
-## Suggested strategy
+- **Interfaces**: rosidl requires PascalCase interface names and UPPER_CASE
+  constants: `planner_srv` -> `PlannerSrv`, `kExtendedBound` -> `EXTENDED_BOUND`,
+  `pathFollowerAction` -> `PathFollower`. Every external consumer must follow.
+- **`planner_common/ros2_compat.h`**: keeps the ~500 ROS 1 logging calls and
+  ~160 global `ros::param::get` calls working on rclcpp (`ROS_*` macros ->
+  `RCLCPP_*`; `"<node>/Group/name"` -> parameter `Group.name`; nodes are created
+  with `automatically_declare_parameters_from_overrides`). Also `ServiceCall<T>`
+  / `call()` (blocking call with timeout), `advertiseService()`, `subscribe()`.
+- **Threading**: nodes spin in a `MultiThreadedExecutor`; planner callbacks stay
+  in the default mutually exclusive group (ROS 1 single-thread semantics) and
+  service clients called from callbacks use a separate group, so the blocking
+  planner <-> PCI calls cannot deadlock. The PCI loop is a 20 Hz timer.
+- **tf -> tf2**, `ros::package` -> `ament_index_cpp`, `ros::serialization` ->
+  `rclcpp::Serialization` (graph files saved by the ROS 1 version cannot be loaded).
+- **Parameters**: YAML is now `/**/<node>: ros__parameters:`. rosparam's
+  `rad()`/`deg()` are evaluated at conversion time. Types must match what the code
+  reads (`50.0`, not `50`, for voxblox doubles).
+- **Frames**: visualization and homing use `PlanningParams.global_frame_id`
+  (per-drone `<drone>/map`) instead of a hard-coded `world`.
+- **RViz**: new RViz2 layout, relative topics; the panel follows RViz' namespace.
 
-1. Port the interface packages first (with renames) and run `ros1_bridge`-free ROS 2 builds of `kdtree` + msgs.
-2. Decide the voxblox question early: it is the critical path for `map_manager` and therefore `gbplanner`.
-3. Port `planner_common` -> `map_manager` -> `gbplanner` as composable nodes.
-4. Do the simulation stack (Harmonic + ros_gz) in parallel, since it is mostly independent.
-5. Update `vcstool/*.repos` to point at ROS 2 branches as each external repo is ported.
+## Dependencies
+
+| Dependency | Resolution |
+|---|---|
+| voxblox | `GabrieleSantangelo/voxblox-ros2` (Jazzy CI, `EsdfServer/TsdfServer(rclcpp::Node*)`). The cmrobotics `ros2` branch was only a partial port (no `EsdfServer`, publishing disabled). NTNU's fork changes (fast-integrator abort criterion, ESDF colour) are not carried over; gbplanner does not need them. Build with `-DCMAKE_POSITION_INDEPENDENT_CODE=ON`. |
+| catkin wrappers (`glog_catkin`, `protobuf_catkin`, `minkindr`, ...) | system packages / voxblox-ros2's own ament packages |
+| `catkin_simple` | plain `ament_cmake` |
+| BehaviorTree.CPP | `ros-jazzy-behaviortree-cpp` (v4; trees were already `BTCPP_format="4"`) |
+| grid_map, pcl_ros | `ros-jazzy-grid-map`, `ros-jazzy-pcl-ros` |
+| RotorS / gz Garden / patched gz-sim | replaced by the SpaceUav Gazebo Harmonic stack + `pci_mavros` |
+
+## Known issues / follow-ups
+
+- voxblox-ros2 `tsdf_server.cc`: `min_time_between_msgs_.from_seconds(...)` is a
+  static call whose result is discarded, so `min_time_between_msgs_sec` is ignored
+  and clouds are integrated at most once per second (fix upstream or in a fork).
+- glog's failure signal handler (kept from ROS 1) prints a stack trace on SIGTERM
+  at shutdown; harmless.
+- The sensor must observe the space around the robot for the first graph to
+  connect: the 3D lidar is 32 beams, +/-45 deg (a +/-15 deg lidar leaves the
+  root box unknown and planning fails).
+- PX4 drones are not supported by `pci_mavros` (ArduPilot GUIDED only).

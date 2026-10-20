@@ -10,6 +10,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <geometry_msgs/msg/point_stamped.hpp>
+#include <nav_msgs/msg/path.hpp>
 #include <geometry_msgs/msg/polygon.hpp>
 #include <geometry_msgs/msg/polygon_stamped.hpp>
 #include <kdtree/kdtree.h>
@@ -23,6 +24,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 
 #include <geometry_msgs/msg/point_stamped.hpp>
+#include <nav_msgs/msg/path.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/float32_multi_array.hpp>
@@ -408,7 +410,7 @@ class Rrg {
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr time_log_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr pci_reset_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr local_free_map_pub_;
-  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr path_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr free_cloud_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr entry_point_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr local_target_pub_;
