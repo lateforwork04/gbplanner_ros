@@ -1,11 +1,9 @@
 #pragma once
 
-#include <geometry_msgs/Point.h>
-#include <ros/message_traits.h>
-#include <ros/serialization.h>
+#include <geometry_msgs/msg/point.hpp>
 
 #include "planner_common/params.h"
-#include "planner_semantic_msgs/SemanticClass.h"
+#include "planner_semantic_msgs/msg/semantic_class.hpp"
 // #include "planner_common/map_manager.h"
 
 // namespace explorer {
@@ -127,7 +125,7 @@ struct BoundingBoxType {
     max_val = v_max;
   }
 
-  void set(geometry_msgs::Point& p_min, geometry_msgs::Point& p_max,
+  void set(geometry_msgs::msg::Point& p_min, geometry_msgs::msg::Point& p_max,
            bool set_z_val = false) {
     min_val.x() = p_min.x;
     min_val.y() = p_min.y;
@@ -138,7 +136,7 @@ struct BoundingBoxType {
     if (set_z_val) max_val.z() = p_max.z;
   }
 
-  void get(geometry_msgs::Point& p_min, geometry_msgs::Point& p_max) {
+  void get(geometry_msgs::msg::Point& p_min, geometry_msgs::msg::Point& p_max) {
     p_min.x = min_val.x();
     p_min.y = min_val.y();
     p_min.z = min_val.z();
@@ -181,7 +179,7 @@ struct Vertex {
     cluster_id = 0;
     is_checked = false;
     dm = 0;
-    semantic_class.value = planner_semantic_msgs::SemanticClass::kNone;
+    semantic_class.value = planner_semantic_msgs::msg::SemanticClass::NONE;
   }
 
   // Unique id for each vertex (root: 0, others: positive number).
@@ -208,7 +206,7 @@ struct Vertex {
   double dm;
   bool is_checked;
   // Semantic
-  planner_semantic_msgs::SemanticClass semantic_class;
+  planner_semantic_msgs::msg::SemanticClass semantic_class;
   // Edge map
   std::vector<int> neighbors;
 };
@@ -284,53 +282,3 @@ struct RandomSamplingParams {
   double num_loops_max;
 };
 
-/* Serialization of structs */
-namespace ros {
-namespace serialization {
-// VolumetricGain
-template <>
-struct Serializer<VolumetricGain> {
-  template <typename Stream, typename T>
-  inline static void allInOne(Stream& stream, T m) {
-    stream.next(m.gain);
-    stream.next(m.accumulative_gain);
-    stream.next(m.num_unknown_voxels);
-    stream.next(m.num_free_voxels);
-    stream.next(m.num_occupied_voxels);
-    stream.next(m.is_frontier);
-  }
-
-  ROS_DECLARE_ALLINONE_SERIALIZER
-};
-// StateVec
-template <>
-struct Serializer<StateVec> {
-  template <typename Stream, typename T>
-  inline static void allInOne(Stream& stream, T m) {
-    stream.next(m[0]);
-    stream.next(m[1]);
-    stream.next(m[2]);
-    stream.next(m[3]);
-    stream.next(m[4]);
-  }
-
-  ROS_DECLARE_ALLINONE_SERIALIZER
-};
-
-// Serialize Vertex
-template <>
-struct Serializer<SerializeVertex> {
-  template <typename Stream, typename T>
-  inline static void allInOne(Stream& stream, T m) {
-    stream.next(m.id);
-    stream.next(m.state);
-    stream.next(m.vol_gain);
-    stream.next(m.parent_id);
-    stream.next(m.type);
-  }
-
-  ROS_DECLARE_ALLINONE_SERIALIZER
-};
-
-}  // namespace serialization
-}  // namespace ros

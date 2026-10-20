@@ -15,7 +15,7 @@ Polygon2d::Polygon2d(std::vector<Eigen::Vector2d> points) {
   bg::correct(polygon_);
 }
 
-Polygon2d::Polygon2d(const geometry_msgs::Polygon& poly_msg) {
+Polygon2d::Polygon2d(const geometry_msgs::msg::Polygon& poly_msg) {
   for (auto p = poly_msg.points.begin(); p != poly_msg.points.end(); ++p) {
     bg::append(polygon_.outer(), Point2dType(p->x, p->y));
   }
@@ -75,7 +75,7 @@ void Polygon2d::convertEigenToPoint(Eigen::Vector2d& e, Point2dType& p) {
   bg::assign_values(p, e.x(), e.y());
 }
 
-void GeofenceManager::addGeofenceArea(const geometry_msgs::Polygon poly_msg,
+void GeofenceManager::addGeofenceArea(const geometry_msgs::msg::Polygon poly_msg,
                                       bool merge) {
   ROS_WARN_COND(global_verbosity >= Verbosity::WARN, "Added new geofence area.");
   Polygon2d poly2d(poly_msg);
@@ -286,7 +286,7 @@ bool GeofenceManager::loadParams(std::string ns) {
 
   std::vector<std::string> geofence_init_list;
   param_name = ns + "/AreaList";
-  if (!ros::param::get(param_name, geofence_init_list)) {
+  if (!planner_common::param::get(param_name, geofence_init_list)) {
     // return true;
     ROSPARAM_WARN(param_name, "No 2D geofence areas defined.");
   } else {
@@ -296,7 +296,7 @@ bool GeofenceManager::loadParams(std::string ns) {
 
       param_val.clear();
       param_name = ns + "/" + s + "/center";
-      if ((!ros::param::get(param_name, param_val)) ||
+      if ((!planner_common::param::get(param_name, param_val)) ||
           (param_val.size() != 3)) {
         ROSPARAM_ERROR(param_name);
         return false;
@@ -305,7 +305,7 @@ bool GeofenceManager::loadParams(std::string ns) {
 
       param_val.clear();
       param_name = ns + "/" + s + "/size";
-      if ((!ros::param::get(param_name, param_val)) ||
+      if ((!planner_common::param::get(param_name, param_val)) ||
           (param_val.size() != 3)) {
         ROSPARAM_ERROR(param_name);
         return false;

@@ -16,7 +16,7 @@ bool RandomSamplerBase::loadParams(std::string ns) {
   std::string parse_str;
 
   param_name = ns + "/pdf_type";
-  ros::param::get(param_name, parse_str);
+  planner_common::param::get(param_name, parse_str);
   if (!parse_str.compare("kUniform"))
     pdf_type_ = RandomDistributionType::kUniform;
   else if (!parse_str.compare("kNormal"))
@@ -35,7 +35,7 @@ bool RandomSamplerBase::loadParams(std::string ns) {
   
   if ((pdf_type_ == RandomDistributionType::kNormalUniform) || (pdf_type_ == RandomDistributionType::kNormal)){
     param_name = ns + "/std_val";
-    if (!ros::param::get(param_name, std_val_)) {
+    if (!planner_common::param::get(param_name, std_val_)) {
       ROSPARAM_ERROR(param_name);
       return false;
     }
@@ -44,7 +44,7 @@ bool RandomSamplerBase::loadParams(std::string ns) {
   }
 
   param_name = ns + "/sample_mode";
-  ros::param::get(param_name, parse_str);
+  planner_common::param::get(param_name, parse_str);
   if (!parse_str.compare("kManual"))
     sample_mode_ = SampleModeType::kManual;
   else if (!parse_str.compare("kLocal")) {
@@ -65,12 +65,12 @@ bool RandomSamplerBase::loadParams(std::string ns) {
     if (pdf_type_ == RandomDistributionType::kUniform) {
       // Uniform pdf: min, max
       param_name = ns + "/min_val";
-      if (!ros::param::get(param_name, min_val_)) {
+      if (!planner_common::param::get(param_name, min_val_)) {
         ROSPARAM_ERROR(param_name);
         return false;
       }
       param_name = ns + "/max_val";
-      if (!ros::param::get(param_name, max_val_)) {
+      if (!planner_common::param::get(param_name, max_val_)) {
         ROSPARAM_ERROR(param_name);
         return false;
       }
@@ -78,29 +78,29 @@ bool RandomSamplerBase::loadParams(std::string ns) {
       // NormalUniform and Normal pdf: mean, as well as min and max to truncate if required
       use_bound_ = true;
       param_name = ns + "/min_val";
-      if (!ros::param::get(param_name, min_val_)) {
+      if (!planner_common::param::get(param_name, min_val_)) {
         ROSPARAM_WARN(param_name, "not used");
         use_bound_ = false;
       }
       param_name = ns + "/max_val";
-      if (!ros::param::get(param_name, max_val_)) {
+      if (!planner_common::param::get(param_name, max_val_)) {
         ROSPARAM_WARN(param_name, "not used");
         use_bound_ = false;
       }
       param_name = ns + "/mean_val";
-      if (!ros::param::get(param_name, mean_val_)) {
+      if (!planner_common::param::get(param_name, mean_val_)) {
         ROSPARAM_ERROR(param_name);
         return false;
       }
       // param_name = ns + "/std_val";
-      // if (!ros::param::get(param_name, std_val_)) {
+      // if (!planner_common::param::get(param_name, std_val_)) {
       //   ROSPARAM_ERROR(param_name);
       //   return false;
       // }
     } else if (pdf_type_ == RandomDistributionType::kConst) {
       // Set const value.
       param_name = ns + "/const_val";
-      if (!ros::param::get(param_name, const_val_)) {
+      if (!planner_common::param::get(param_name, const_val_)) {
         ROSPARAM_ERROR(param_name);
         return false;
       }

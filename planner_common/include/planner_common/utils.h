@@ -1,5 +1,6 @@
 #include "planner_common/graph_base.h"
-#include <tf/transform_datatypes.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
 
 class Timer
 {
@@ -27,7 +28,7 @@ public:
 	}
 };
 
-inline void convert(const Eigen::Matrix<double, 5, 1> &st, geometry_msgs::Pose &p)
+inline void convert(const Eigen::Matrix<double, 5, 1> &st, geometry_msgs::msg::Pose &p)
 {
 	Eigen::Quaterniond q =
 	Eigen::AngleAxisd(st[3], Eigen::Vector3d::UnitZ()) *
@@ -45,21 +46,21 @@ inline void convert(const Eigen::Matrix<double, 5, 1> &st, geometry_msgs::Pose &
 
 }
 
-inline void convert(const geometry_msgs::Pose &p, Eigen::Matrix<double, 5, 1> &st)
+inline void convert(const geometry_msgs::msg::Pose &p, Eigen::Matrix<double, 5, 1> &st)
 {
 	st[0] = p.position.x;
 	st[1] = p.position.y;
 	st[2] = p.position.z;
 	// st[3] = tf::getYaw(p.orientation);
-	tf::Quaternion quat(p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w);
-	tfScalar yaw, pitch, roll;
-	tf::Matrix3x3 mat(quat);
+	tf2::Quaternion quat(p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w);
+	tf2Scalar yaw, pitch, roll;
+	tf2::Matrix3x3 mat(quat);
 	mat.getEulerYPR(yaw, pitch, roll);
 	st[3] = yaw;
 	st[4] = pitch;
 }
 
-inline void convert(const std::vector<geometry_msgs::Pose> &pose_path, std::vector<Eigen::Matrix<double, 5, 1>> &vec_path)
+inline void convert(const std::vector<geometry_msgs::msg::Pose> &pose_path, std::vector<Eigen::Matrix<double, 5, 1>> &vec_path)
 {
 	vec_path.clear();
 	for(auto &p : pose_path)
@@ -70,12 +71,12 @@ inline void convert(const std::vector<geometry_msgs::Pose> &pose_path, std::vect
 	}
 }
 
-inline void convert(const std::vector<Eigen::Matrix<double, 5, 1>> &vec_path, std::vector<geometry_msgs::Pose> &pose_path)
+inline void convert(const std::vector<Eigen::Matrix<double, 5, 1>> &vec_path, std::vector<geometry_msgs::msg::Pose> &pose_path)
 {
 	pose_path.clear();
 	for(auto &vp : vec_path)
 	{
-		geometry_msgs::Pose p;
+		geometry_msgs::msg::Pose p;
 		convert(vp, p);
 		pose_path.push_back(p);
 	}
@@ -89,7 +90,7 @@ inline void truncateAngle(double &angle)
 		angle -= 2*M_PI;
 }
 
-inline double getDistance(const geometry_msgs::Pose &pose1, const geometry_msgs::Pose &pose2)
+inline double getDistance(const geometry_msgs::msg::Pose &pose1, const geometry_msgs::msg::Pose &pose2)
 {
 	Eigen::Matrix<double, 5, 1> vec1, vec2;
 	convert(pose1, vec1);
@@ -97,7 +98,7 @@ inline double getDistance(const geometry_msgs::Pose &pose1, const geometry_msgs:
 	return (vec1.head(3) - vec2.head(3)).norm();
 }
 
-inline double pathLength(std::vector<geometry_msgs::Pose> &path)
+inline double pathLength(std::vector<geometry_msgs::msg::Pose> &path)
 {
 	double path_length = 0;
 	for(int i=1; i<path.size(); ++i)
@@ -110,7 +111,7 @@ inline double pathLength(std::vector<geometry_msgs::Pose> &path)
 	return path_length;
 }
 
-inline void linearlyInterpolateYaw(std::vector<geometry_msgs::Pose> &path)  // Keeps the yaw same for first and last pose, and interpolates the rest
+inline void linearlyInterpolateYaw(std::vector<geometry_msgs::msg::Pose> &path)  // Keeps the yaw same for first and last pose, and interpolates the rest
 {
 	if(path.size() <= 2)
 		return;

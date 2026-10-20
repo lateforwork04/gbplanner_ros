@@ -1,24 +1,17 @@
-cmake_minimum_required(VERSION 3.0.2)
-project(kdtree)
+cmake_minimum_required(VERSION 3.8)
+project(kdtree C CXX)
 
-find_package(catkin_simple REQUIRED)
-catkin_simple(ALL_DEPS_REQUIRED)
+find_package(ament_cmake REQUIRED)
 
-#############
-# LIBRARIES #
-#############
-cs_add_library(${PROJECT_NAME}
-  src/kdtree.c
-)
+add_library(${PROJECT_NAME} SHARED src/kdtree.c)
+target_include_directories(${PROJECT_NAME} PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_link_libraries(${PROJECT_NAME} m)
 
-include_directories(include ${catkin_INCLUDE_DIRS})
+install(DIRECTORY include/ DESTINATION include)
+install(TARGETS ${PROJECT_NAME} EXPORT export_${PROJECT_NAME}
+  ARCHIVE DESTINATION lib LIBRARY DESTINATION lib RUNTIME DESTINATION bin)
 
-catkin_package(
-  INCLUDE_DIRS include ${catkin_INCLUDE_DIRS}
-)
-
-##########
-# EXPORT #
-##########
-cs_install()
-cs_export()
+ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+ament_package()

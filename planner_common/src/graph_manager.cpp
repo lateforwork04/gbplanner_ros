@@ -1,9 +1,10 @@
 #include "planner_common/graph_manager.h"
 
-#include <ros/message_traits.h>
-#include <ros/serialization.h>
+#include <rclcpp/serialization.hpp>
+#include <rclcpp/serialized_message.hpp>
 
-#include "ros/ros.h"
+#include <rclcpp/rclcpp.hpp>
+#include "planner_common/ros2_compat.h"
 
 GraphManager::GraphManager() {
   kd_tree_ = NULL;
@@ -333,10 +334,10 @@ void GraphManager::updateVertexTypeInRange(StateVec& state, double range) {
   }
 }
 
-void GraphManager::convertGraphToMsg(planner_msgs::Graph& graph_msg) {
+void GraphManager::convertGraphToMsg(planner_msgs::msg::Graph& graph_msg) {
   // Get all the vertices
   for (auto& v : vertices_map_) {
-    planner_msgs::Vertex vertex;
+    planner_msgs::msg::Vertex vertex;
     vertex.id = v.second->id;
 
     // convertStateToPoseMsg
@@ -349,11 +350,15 @@ void GraphManager::convertGraphToMsg(planner_msgs::Graph& graph_msg) {
     // vertex.pose.orientation.z = sin(yawhalf);
     // vertex.pose.orientation.w = cos(yawhalf);
 
-    tf::Quaternion quat;
+    tf2::Quaternion quat;
     quat.setEuler(0.0, v.second->state[4], v.second->state[3]);
-    tf::Vector3 origin(v.second->state[0], v.second->state[1], v.second->state[2]);
-    tf::Pose poseTF(quat, origin);
-    tf::poseTFToMsg(poseTF, vertex.pose);
+    vertex.pose.position.x = v.second->state[0];
+    vertex.pose.position.y = v.second->state[1];
+    vertex.pose.position.z = v.second->state[2];
+    vertex.pose.orientation.x = quat.x();
+    vertex.pose.orientation.y = quat.y();
+    vertex.pose.orientation.z = quat.z();
+    vertex.pose.orientation.w = quat.w();
 
     vertex.num_unknown_voxels = v.second->vol_gain.num_unknown_voxels;
     vertex.num_occupied_voxels = v.second->vol_gain.num_occupied_voxels;
@@ -367,14 +372,14 @@ void GraphManager::convertGraphToMsg(planner_msgs::Graph& graph_msg) {
       ei;
   graph_->getEdgeIterator(ei);
   for (Graph::GraphType::edge_iterator it = ei.first; it != ei.second; ++it) {
-    planner_msgs::Edge edge;
+    planner_msgs::msg::Edge edge;
     std::tie(edge.source_id, edge.target_id, edge.weight) =
         graph_->getEdgeProperty(it);
     graph_msg.edges.emplace_back(edge);
   }
 }
 
-void GraphManager::convertMsgToGraph(const planner_msgs::Graph& graph_msg) {
+void GraphManager::convertMsgToGraph(const planner_msgs::msg::Graph& graph_msg) {
   // Add all the vertices first
   for (auto& v : graph_msg.vertices) {
     generateVertexID();  // must call this one to increase the count inside
@@ -411,18 +416,18 @@ void GraphManager::convertMsgToGraph(const planner_msgs::Graph& graph_msg) {
 
 void GraphManager::saveGraph(const std::string& path) {
   // Convert data to the msg type first
-  planner_msgs::Graph graph_msg;
+  planner_msgs::msg::Graph graph_msg;
   convertGraphToMsg(graph_msg);
 
-  // Serialize the data, then write to a file
-  uint32_t serial_size = ros::serialization::serializationLength(graph_msg);
-  boost::shared_array<uint8_t> buffer(new uint8_t[serial_size]);
-  ros::serialization::OStream stream(buffer.get(), serial_size);
-  ros::serialization::serialize(stream, graph_msg);
+  // Serialize the data (CDR), then write to a file
+  rclcpp::Serialization<planner_msgs::msg::Graph> serializer;
+  rclcpp::SerializedMessage serialized;
+  serializer.serialize_message(&graph_msg, &serialized);
+  const auto& buffer = serialized.get_rcl_serialized_message();
 
   // Write to a file
   std::ofstream wrt_file(path, std::ios::out | std::ios::binary);
-  wrt_file.write((char*)buffer.get(), serial_size);
+  wrt_file.write((const char*)buffer.buffer, buffer.buffer_length);
   wrt_file.close();
   ROS_INFO_COND(global_verbosity >= Verbosity::INFO, "Save the graph with [%d] vertices and [%d] edges to a file: %s",
            getNumVertices(), getNumEdges(), path.c_str());
@@ -437,15 +442,16 @@ void GraphManager::loadGraph(const std::string& path) {
   std::size_t size = pbuf->pubseekoff(0, read_file.end, read_file.in);
   pbuf->pubseekpos(0, read_file.in);
   // Read the whole file to a buffer
-  boost::shared_array<uint8_t> buffer(new uint8_t[size]);
-  // char* buffer1=new char[size];
-  pbuf->sgetn((char*)buffer.get(), size);
+  rclcpp::SerializedMessage serialized(size);
+  auto& buffer = serialized.get_rcl_serialized_message();
+  pbuf->sgetn((char*)buffer.buffer, size);
+  buffer.buffer_length = size;
   read_file.close();
 
   // Deserialize data into msg
-  planner_msgs::Graph graph_msg;
-  ros::serialization::IStream stream_in(buffer.get(), size);
-  ros::serialization::deserialize(stream_in, graph_msg);
+  planner_msgs::msg::Graph graph_msg;
+  rclcpp::Serialization<planner_msgs::msg::Graph> serializer;
+  serializer.deserialize_message(&serialized, &graph_msg);
 
   // Reconstruct the graph
   reset();

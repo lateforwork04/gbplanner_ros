@@ -1,7 +1,7 @@
 # Execution path mode, defined in ExecutionPathType.
-int32 kLocalPath = 0
-int32 kHomingPath = 1
-int32 kGlobalPath = 2
+int32 LOCAL_PATH = 0
+int32 HOMING_PATH = 1
+int32 GLOBAL_PATH = 2
 
 # Set one of above values.
 int32 mode
