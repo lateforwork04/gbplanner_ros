@@ -1,0 +1,26 @@
+# pci_mavros_node parameters (ArduCopter SITL in the SpaceUav Gazebo stack).
+# Frame names are set per drone by the launch file.
+pci_mavros_node:
+  ros__parameters:
+    trigger_mode: kManual
+    publish_tf: true          # <name>/map -> <name>/base_link (turn off if the TUI publishes it)
+    auto_takeoff: true        # GUIDED + arm + takeoff on pci_initialization_trigger
+    init_motion_enable: true  # then a full turn in place and init_motion.x_forward
+    smooth_heading_enable: true
+    planner_trigger_lead_time: 0.0
+    init_motion:
+      z_takeoff: 2.0
+      x_forward: 1.0
+    RobotDynamics:
+      v_max: 1.0
+      v_init_max: 0.5
+      v_homing_max: 1.5
+      v_narrow_env_max: 0.5
+      yaw_rate_max: 0.5
+      a_max: 1.0
+    path_following:
+      resample_step: 0.3
+      lookahead_dist: 1.0
+      end_dist_thr: 0.4
+      end_yaw_thr: 0.3
+      control_rate: 20.0
