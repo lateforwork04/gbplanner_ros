@@ -11,7 +11,10 @@
 // with automatically_declare_parameters_from_overrides(true) so the YAML values
 // are visible without declaring each one.
 
+#include <chrono>
 #include <cstdint>
+#include <future>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -43,6 +46,15 @@ inline rclcpp::Time now() {
 inline rclcpp::Clock& clock() {
   static rclcpp::Clock steady(RCL_STEADY_TIME);
   return node() ? *node()->get_clock() : steady;
+}
+
+// Sleep on the main node's clock (sim-time aware), like ros::Duration::sleep().
+inline void sleep(double seconds) {
+  if (seconds <= 0.0) return;
+  if (node())
+    node()->get_clock()->sleep_for(rclcpp::Duration::from_seconds(seconds));
+  else
+    rclcpp::sleep_for(std::chrono::nanoseconds(static_cast<int64_t>(seconds * 1e9)));
 }
 
 // Equivalent of ros::this_node::getName(): "/<namespace>/<node>".
@@ -126,6 +138,49 @@ bool get(const std::string& name, T& value) {
 }
 
 }  // namespace param
+
+// ROS 1 style service object: srv.request / srv.response.
+template <typename SrvT>
+struct ServiceCall {
+  typename SrvT::Request request;
+  typename SrvT::Response response;
+};
+
+// Blocking service call, like ros::ServiceClient::call(). The client must
+// belong to a callback group that another executor thread can serve (see
+// clientCallbackGroup()), otherwise the response is never processed.
+template <typename SrvT>
+bool call(const typename rclcpp::Client<SrvT>::SharedPtr& client, ServiceCall<SrvT>& srv,
+          std::chrono::duration<double> timeout = std::chrono::seconds(60)) {
+  if (!client || !client->wait_for_service(std::chrono::seconds(1))) {
+    RCLCPP_WARN(logger(), "Service %s is not available",
+                client ? client->get_service_name() : "<null>");
+    return false;
+  }
+  auto request = std::make_shared<typename SrvT::Request>(srv.request);
+  auto future = client->async_send_request(request);
+  if (future.wait_for(timeout) != std::future_status::ready) {
+    client->remove_pending_request(future);
+    RCLCPP_WARN(logger(), "Service %s timed out", client->get_service_name());
+    return false;
+  }
+  srv.response = *future.get();
+  return true;
+}
+
+// Register a ROS 1 style callback: bool Class::cb(Request&, Response&).
+template <typename SrvT, typename C>
+typename rclcpp::Service<SrvT>::SharedPtr advertiseService(
+    const rclcpp::Node::SharedPtr& n, const std::string& name, C* obj,
+    bool (C::*cb)(typename SrvT::Request&, typename SrvT::Response&),
+    rclcpp::CallbackGroup::SharedPtr group = nullptr) {
+  return n->create_service<SrvT>(
+      name,
+      [obj, cb](const std::shared_ptr<typename SrvT::Request> req,
+                std::shared_ptr<typename SrvT::Response> res) { (obj->*cb)(*req, *res); },
+      rclcpp::ServicesQoS(), group);
+}
+
 }  // namespace planner_common
 
 // ROS 1 logging macros on top of rclcpp, logging to the main node's logger.
