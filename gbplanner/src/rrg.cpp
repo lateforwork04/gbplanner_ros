@@ -3682,6 +3682,7 @@ bool Rrg::loadParams(bool shared_params) {
 
   if (!planning_params_.loadParams(ns + "/PlanningParams")) return false;
   world_frame_ = planning_params_.global_frame_id;
+  visualization_->setGlobalFrame(world_frame_);
   std::vector<double> empty_vec;
   for (int i = 0; i < planning_params_.num_vertices_max; ++i) {
     empty_vec.push_back(0.0);

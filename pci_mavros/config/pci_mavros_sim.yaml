@@ -1,6 +1,6 @@
 # pci_mavros_node parameters (ArduCopter SITL in the SpaceUav Gazebo stack).
 # Frame names are set per drone by the launch file.
-pci_mavros_node:
+/**/pci_mavros_node:
   ros__parameters:
     trigger_mode: kManual
     publish_tf: true          # <name>/map -> <name>/base_link (turn off if the TUI publishes it)

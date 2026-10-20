@@ -303,7 +303,7 @@ bool Gbplanner::plannerServiceCallback(
         compartment_change_tries_ = 0;
         ROS_WARN("All compartments explored");
         if(planning_params_.auto_homing_enable)
-          res.path = rrg_->getHomingPath("world");
+          res.path = rrg_->getHomingPath(planning_params_.global_frame_id);
         else
           res.path = empty_path;
         break;

@@ -138,7 +138,7 @@ PlannerControlInterface::PlannerControlInterface(
       "semantic_location", 10);
 
   nav_goal_sub_ = node_->create_subscription<geometry_msgs::msg::PoseStamped>(
-      "/goal_pose", 1, std::bind(&PlannerControlInterface::navGoalCallback, this, std::placeholders::_1),
+      "goal_pose", 1, std::bind(&PlannerControlInterface::navGoalCallback, this, std::placeholders::_1),
       sub_options);
   pose_goal_sub_ = node_->create_subscription<geometry_msgs::msg::PoseStamped>(
       "/global_planner/waypoint_request", 1,

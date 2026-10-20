@@ -80,6 +80,12 @@ gbplanner_panel::gbplanner_panel(QWidget* parent) : rviz_common::Panel(parent) {
 
 void gbplanner_panel::onInitialize() {
   node_ = getDisplayContext()->getRosNodeAbstraction().lock()->get_raw_node();
+  // Default to RViz' own namespace (e.g. launched under /SpaceUavDrone1).
+  const std::string rviz_ns = node_->get_namespace();
+  if (namespace_line_edit->text().isEmpty() && rviz_ns != "/") {
+    namespace_line_edit->setText(QString::fromStdString(rviz_ns));
+    on_namespace_changed();
+  }
   createClients();
 }
 
