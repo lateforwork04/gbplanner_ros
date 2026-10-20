@@ -1,27 +1,23 @@
 #include "gbplanner_ui.h"
+
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <rviz_common/display_context.hpp>
 // pci_initialization_trigger
 namespace gbplanner_ui {
 
-gbplanner_panel::gbplanner_panel(QWidget* parent) : rviz::Panel(parent) {
-  planner_client_start_planner = nh.serviceClient<std_srvs::Trigger>(
-      "/planner_control_interface/std_srvs/automatic_planning");
-  planner_client_start_planner_single = nh.serviceClient<std_srvs::Trigger>(
-      "/planner_control_interface/std_srvs/single_planning");   
-  planner_client_stop_planner = nh.serviceClient<std_srvs::Trigger>(
-      "/planner_control_interface/std_srvs/stop");
-  planner_client_homing = nh.serviceClient<std_srvs::Trigger>(
-      "/planner_control_interface/std_srvs/homing_trigger");
-  planner_client_init_motion =
-      nh.serviceClient<planner_msgs::pci_initialization>(
-          "pci_initialization_trigger");
-  planner_client_plan_to_waypoint = nh.serviceClient<std_srvs::Trigger>(
-      "/planner_control_interface/std_srvs/go_to_waypoint");
-  planner_client_global_planner =
-      nh.serviceClient<planner_msgs::pci_global>("pci_global");
-  change_operation_mode_client = nh.serviceClient<std_srvs::SetBool>(
-        "gbplanner/switch_operation_mode");
-
+gbplanner_panel::gbplanner_panel(QWidget* parent) : rviz_common::Panel(parent) {
   QVBoxLayout* v_box_layout = new QVBoxLayout;
+
+  QHBoxLayout* ns_hbox_layout = new QHBoxLayout;
+  ns_hbox_layout->addWidget(new QLabel("Robot namespace:"));
+  namespace_line_edit = new QLineEdit();
+  namespace_line_edit->setPlaceholderText("/SpaceUavDrone1");
+  ns_hbox_layout->addWidget(namespace_line_edit);
+  v_box_layout->addLayout(ns_hbox_layout);
 
   button_start_planner = new QPushButton;
   button_start_planner_single = new QPushButton;
@@ -78,54 +74,86 @@ gbplanner_panel::gbplanner_panel(QWidget* parent) : rviz::Panel(parent) {
   connect(button_global_planner, SIGNAL(clicked()), this,
           SLOT(on_global_planner_click()));
   connect(button_change_operation_mode, SIGNAL(clicked()), this, SLOT(on_change_operation_mode_click()));
+  connect(namespace_line_edit, SIGNAL(editingFinished()), this,
+          SLOT(on_namespace_changed()));
+}
+
+void gbplanner_panel::onInitialize() {
+  node_ = getDisplayContext()->getRosNodeAbstraction().lock()->get_raw_node();
+  createClients();
+}
+
+void gbplanner_panel::on_namespace_changed() {
+  std::string ns = namespace_line_edit->text().trimmed().toStdString();
+  while (!ns.empty() && ns.back() == '/') ns.pop_back();
+  if (!ns.empty() && ns.front() != '/') ns = "/" + ns;
+  if (ns == robot_ns_) return;
+  robot_ns_ = ns;
+  createClients();
+  Q_EMIT configChanged();
+}
+
+void gbplanner_panel::createClients() {
+  if (!node_) return;
+  const std::string p = robot_ns_ + "/";
+  planner_client_start_planner = node_->create_client<std_srvs::srv::Trigger>(
+      p + "planner_control_interface/std_srvs/automatic_planning");
+  planner_client_start_planner_single = node_->create_client<std_srvs::srv::Trigger>(
+      p + "planner_control_interface/std_srvs/single_planning");
+  planner_client_stop_planner = node_->create_client<std_srvs::srv::Trigger>(
+      p + "planner_control_interface/std_srvs/stop");
+  planner_client_homing = node_->create_client<std_srvs::srv::Trigger>(
+      p + "planner_control_interface/std_srvs/homing_trigger");
+  planner_client_init_motion = node_->create_client<planner_msgs::srv::PciInitialization>(
+      p + "pci_initialization_trigger");
+  planner_client_plan_to_waypoint = node_->create_client<std_srvs::srv::Trigger>(
+      p + "planner_control_interface/std_srvs/go_to_waypoint");
+  planner_client_global_planner =
+      node_->create_client<planner_msgs::srv::PciGlobal>(p + "pci_global");
+  change_operation_mode_client = node_->create_client<std_srvs::srv::SetBool>(
+      p + "gbplanner/switch_operation_mode");
+}
+
+template <typename SrvT>
+void gbplanner_panel::callAsync(const typename rclcpp::Client<SrvT>::SharedPtr& client,
+                                std::shared_ptr<typename SrvT::Request> request) {
+  if (!client || !client->service_is_ready()) {
+    RCLCPP_ERROR(rclcpp::get_logger("gbplanner_ui"), "[GBPLANNER-UI] Service not available: %s",
+                 client ? client->get_service_name() : "<no node>");
+    return;
+  }
+  client->async_send_request(request);
 }
 
 void gbplanner_panel::on_start_planner_click() {
-  std_srvs::Trigger srv;
-  if (!planner_client_start_planner.call(srv)) {
-    ROS_ERROR("[GBPLANNER-UI] Service call failed: %s",
-              planner_client_start_planner.getService().c_str());
-  }
+  callAsync<std_srvs::srv::Trigger>(planner_client_start_planner,
+                                    std::make_shared<std_srvs::srv::Trigger::Request>());
 }
 
 void gbplanner_panel::on_start_planner_single_click() {
-  std_srvs::Trigger srv;
-  if (!planner_client_start_planner_single.call(srv)) {
-    ROS_ERROR("[GBPLANNER-UI] Service call failed: %s",
-              planner_client_start_planner_single.getService().c_str());
-  }
+  callAsync<std_srvs::srv::Trigger>(planner_client_start_planner_single,
+                                    std::make_shared<std_srvs::srv::Trigger::Request>());
 }
 
 void gbplanner_panel::on_stop_planner_click() {
-  std_srvs::Trigger srv;
-  if (!planner_client_stop_planner.call(srv)) {
-    ROS_ERROR("[GBPLANNER-UI] Service call failed: %s",
-              planner_client_stop_planner.getService().c_str());
-  }
+  callAsync<std_srvs::srv::Trigger>(planner_client_stop_planner,
+                                    std::make_shared<std_srvs::srv::Trigger::Request>());
 }
 
 void gbplanner_panel::on_homing_click() {
-  std_srvs::Trigger srv;
-  if (!planner_client_homing.call(srv)) {
-    ROS_ERROR("[GBPLANNER-UI] Service call failed: %s",
-              planner_client_homing.getService().c_str());
-  }
+  callAsync<std_srvs::srv::Trigger>(planner_client_homing,
+                                    std::make_shared<std_srvs::srv::Trigger::Request>());
 }
 
 void gbplanner_panel::on_init_motion_click() {
-  planner_msgs::pci_initialization srv;
-  if (!planner_client_init_motion.call(srv)) {
-    ROS_ERROR("[GBPLANNER-UI] Service call failed: %s",
-              planner_client_init_motion.getService().c_str());
-  }
+  callAsync<planner_msgs::srv::PciInitialization>(
+      planner_client_init_motion,
+      std::make_shared<planner_msgs::srv::PciInitialization::Request>());
 }
 
 void gbplanner_panel::on_plan_to_waypoint_click() {
-  std_srvs::Trigger srv;
-  if (!planner_client_plan_to_waypoint.call(srv)) {
-    ROS_ERROR("[GBPLANNER-UI] Service call failed: %s",
-              planner_client_plan_to_waypoint.getService().c_str());
-  }
+  callAsync<std_srvs::srv::Trigger>(planner_client_plan_to_waypoint,
+                                    std::make_shared<std_srvs::srv::Trigger::Request>());
 }
 
 void gbplanner_panel::on_global_planner_click() {
@@ -140,39 +168,32 @@ void gbplanner_panel::on_global_planner_click() {
     try {
       id = std::stoi(in_string);
     } catch (const std::out_of_range& exc) {
-      ROS_ERROR("[GBPLANNER UI] - Invalid ID: %s", in_string.c_str());
+      RCLCPP_ERROR(rclcpp::get_logger("gbplanner_ui"), "[GBPLANNER UI] - Invalid ID: %s", in_string.c_str());
       return;
     } catch (const std::invalid_argument& exc) {
-      ROS_ERROR("[GBPLANNER UI] - Invalid ID: %s", in_string.c_str());
+      RCLCPP_ERROR(rclcpp::get_logger("gbplanner_ui"), "[GBPLANNER UI] - Invalid ID: %s", in_string.c_str());
       return;
     }
   }
   // check bounds on integer
   if (id < 0) {
-    ROS_ERROR("[GBPLANNER UI] - In valid ID, must be non-negative");
+    RCLCPP_ERROR(rclcpp::get_logger("gbplanner_ui"), "[GBPLANNER UI] - In valid ID, must be non-negative");
     return;
   }
   // we got an ID!!!!!!!!!
-  ROS_INFO("Global Planner found ID : %i", id);
+  RCLCPP_INFO(rclcpp::get_logger("gbplanner_ui"), "Global Planner found ID : %i", id);
 
-  planner_msgs::pci_global plan_srv;
-  plan_srv.request.id = id;
-  if (!planner_client_global_planner.call(plan_srv)) {
-    ROS_ERROR("[GBPLANNER-UI] Service call failed: %s",
-              planner_client_global_planner.getService().c_str());
-  }
+  auto request = std::make_shared<planner_msgs::srv::PciGlobal::Request>();
+  request->id = id;
+  callAsync<planner_msgs::srv::PciGlobal>(planner_client_global_planner, request);
 }
 
 void gbplanner_panel::on_change_operation_mode_click()
 {
-  std_srvs::SetBool srv;
   waypoint_nav_mode = !waypoint_nav_mode;
-  srv.request.data = waypoint_nav_mode;
-  if (!change_operation_mode_client.call(srv))
-  {
-    ROS_ERROR("[GBPLANNER UI] Service call failed: %s",
-              change_operation_mode_client.getService().c_str());
-  }
+  auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
+  request->data = waypoint_nav_mode;
+  callAsync<std_srvs::srv::SetBool>(change_operation_mode_client, request);
   if (waypoint_nav_mode)
   {
     button_change_operation_mode->setText("Operation mode (WP)");
@@ -183,14 +204,20 @@ void gbplanner_panel::on_change_operation_mode_click()
   }
 }
 
-void gbplanner_panel::save(rviz::Config config) const {
-  rviz::Panel::save(config);
+void gbplanner_panel::save(rviz_common::Config config) const {
+  rviz_common::Panel::save(config);
+  config.mapSetValue("RobotNamespace", QString::fromStdString(robot_ns_));
 }
-void gbplanner_panel::load(const rviz::Config& config) {
-  rviz::Panel::load(config);
+void gbplanner_panel::load(const rviz_common::Config& config) {
+  rviz_common::Panel::load(config);
+  QString ns;
+  if (config.mapGetString("RobotNamespace", &ns)) {
+    namespace_line_edit->setText(ns);
+    on_namespace_changed();
+  }
 }
 
 }  // namespace gbplanner_ui
 
-#include <pluginlib/class_list_macros.h>
-PLUGINLIB_EXPORT_CLASS(gbplanner_ui::gbplanner_panel, rviz::Panel)
+#include <pluginlib/class_list_macros.hpp>
+PLUGINLIB_EXPORT_CLASS(gbplanner_ui::gbplanner_panel, rviz_common::Panel)

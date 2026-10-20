@@ -1,7 +1,7 @@
 <library path="lib/libgbplanner_ui">
   <class name="gbplanner_ui/GbPlanner Control"
          type="gbplanner_ui::gbplanner_panel"
-         base_class_type="rviz::Panel">
+         base_class_type="rviz_common::Panel">
     <description>
       A panel widget for control of gbplanner.
     </description>
